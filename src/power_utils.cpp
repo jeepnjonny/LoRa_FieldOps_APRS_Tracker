@@ -404,6 +404,18 @@ namespace POWER_Utils {
             pinMode(ADC_CTRL, OUTPUT);
         #endif
 
+        #ifdef HELTEC_T114
+            // VEXT_ENABLE (GPS_VCC, P0.21) gates the L76K GPS *and* the SX1262
+            // power rail on this board. It used to be driven HIGH only inside
+            // GPS_Utils::setup(), which early-returns when disableGPS=true —
+            // leaving the radio unpowered and radio.begin() failing with -13
+            // (SPI cmd timeout). Drive it HIGH at board-level so the rail is
+            // live before any peripheral init, regardless of GPS config.
+            pinMode(GPS_VCC, OUTPUT);
+            digitalWrite(GPS_VCC, HIGH);
+            delay(200);     // let the rail settle before SPI traffic
+        #endif
+
         #ifdef HELTEC_WIRELESS_TRACKER
             Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL);
         #endif

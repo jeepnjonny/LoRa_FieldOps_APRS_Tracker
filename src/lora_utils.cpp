@@ -166,7 +166,20 @@ namespace LoRa_Utils {
         #endif
 
         #if (defined(HAS_SX1268) || defined(HAS_SX1262)) && !defined(HAS_1W_LORA)
-            state = radio.setOutputPower(currentLoRaType->power + 2); // values available: 10, 17, 22 --> if 20 in tracker_conf.json it will be updated to 22.
+            // SX1262 valid range is -9..+22 dBm. The +2 offset is upstream's
+            // user-friendly bump (config 20 -> chip 22). If the on-flash
+            // config has a value outside the safe band, the call returns
+            // -13 (INVALID_OUTPUT_POWER) and aborts the whole init. Clamp
+            // here so a stale or corrupt config can't brick startup.
+            int8_t requestedPower = currentLoRaType->power + 2;
+            int8_t clampedPower   = requestedPower;
+            if (clampedPower > 22)  clampedPower = 22;
+            if (clampedPower < -9)  clampedPower = -9;
+            logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "LoRa",
+                       "loraIndex=%u, cfg power=%d, requested=%d, clamped=%d",
+                       (unsigned)loraIndex, (int)currentLoRaType->power,
+                       (int)requestedPower, (int)clampedPower);
+            state = radio.setOutputPower(clampedPower);
             radio.setCurrentLimit(140);
         #endif
 

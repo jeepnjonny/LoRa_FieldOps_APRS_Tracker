@@ -37,6 +37,10 @@ void displayShow(const String&, const String&, const String&, int) {}
 void displayShow(const String&, const String&, const String&, const String&,
                  const String&, const String&, int) {}
 void startupScreen(uint8_t, const String&) {}
+void bootStatus(const char* step) {
+    if (!step) return;
+    Serial.print(F("[boot ")); Serial.print(millis()); Serial.print(F("ms] ")); Serial.println(step);
+}
 
 #else  // HAS_DISPLAY is defined
 
@@ -81,6 +85,10 @@ namespace {
     String  _prevHeader     = "\xFF";    // sentinel — won't match any real header on first call
     String  _prevLines[MAX_CACHED_LINES];
     bool    _cacheValid     = false;     // false after displaySetup, forces full repaint
+    bool    _tftReady       = false;     // becomes true at end of displaySetup; bootStatus
+                                         // must skip TFT writes until then or the early
+                                         // calls (before displaySetup) deadlock on SPI1
+                                         // and the backlight pin never gets driven LOW.
 
     void drawScreen(const String& header, const String* lines, int nLines) {
         const int16_t w = tft.width();
@@ -133,6 +141,7 @@ void displaySetup() {
     tft.setRotation(1);                 // landscape -> 240x135
     tft.fillScreen(COLOR_BG);
     tft.setTextWrap(false);
+    _tftReady = true;
 }
 
 void displayToggle(bool toggle) {
@@ -178,7 +187,35 @@ void startupScreen(uint8_t index, const String& version) {
     tft.println(workingFreq);
     tft.setCursor(0, 74);
     tft.println("Booting...");
-    delay(1500);
+    // Load-bearing settle window before the SPI-heavy peripheral inits
+    // (SX1262 in particular). Removing this caused radio config to hang
+    // post-begin() on the T114 — the rail / reset timing isn't satisfied
+    // without ~1 s of slack between TFT init and radio config.
+    // Chunked so bootStatus() ticks visibly instead of looking frozen.
+    for (int i = 1; i <= 3; ++i) {
+        delay(500);
+        char step[16];
+        snprintf(step, sizeof(step), "settle %d/3", i);
+        bootStatus(step);
+    }
+}
+
+void bootStatus(const char* step) {
+    if (!step) return;
+    Serial.print(F("[boot ")); Serial.print(millis()); Serial.print(F("ms] ")); Serial.println(step);
+    if (!_tftReady) return;     // tft.init() hasn't run yet — SPI1 not begun, panel uninitialized
+    // Overwrite the "Booting..." line under the startup banner with the
+    // current step. Each new step is the heartbeat — if the screen sits on
+    // one label, that's the subsystem that's hanging.
+    constexpr int STATUS_Y = 74;     // matches startupScreen's "Booting..." y
+    constexpr int STATUS_H = 12;     // size-1 line height
+    tft.fillRect(0, STATUS_Y, tft.width(), STATUS_H, COLOR_BG);
+    tft.setCursor(0, STATUS_Y);
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_BODY, COLOR_BG);
+    tft.print("> ");
+    tft.print(step);
+    _cacheValid = false;     // first drawScreen() in loop() will repaint fully
 }
 
 #else  // !HAS_TFT_ST7789 — existing TFT_eSPI / SSD1306 paths
@@ -736,6 +773,13 @@ String fillMessageLine(const String& line, const int& length) {
         completeLine = completeLine + " ";
     }
     return completeLine;
+}
+
+void bootStatus(const char* step) {
+    // Legacy display paths don't have a dedicated banner-line slot; just
+    // mirror progress to the serial log. Every build prints these.
+    if (!step) return;
+    Serial.print(F("[boot ")); Serial.print(millis()); Serial.print(F("ms] ")); Serial.println(step);
 }
 
 #endif // !HAS_TFT_ST7789

@@ -30,4 +30,9 @@ void displayShow(const String& header, const String& line1, const String& line2,
 
 void startupScreen(uint8_t index, const String& version);
 
+// Replaces the "Booting..." line on the startup banner with the named step,
+// and mirrors it to Serial with a millis() timestamp. Lets the user see boot
+// progress (and exactly where it hangs, if it does) on both display and USB.
+void bootStatus(const char* step);
+
 #endif

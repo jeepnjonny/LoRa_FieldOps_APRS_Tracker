@@ -161,24 +161,34 @@ void setup() {
         logger.setDebugLevel(logging::LoggerLevel::LOGGER_LEVEL_INFO);
     #endif
 
+    bootStatus("power");
     POWER_Utils::setup();
+    bootStatus("display");
     displaySetup();
+    bootStatus("ext-pins");
     POWER_Utils::externalPinSetup();
 
+    bootStatus("stations");
     STATION_Utils::loadIndex(0);    // callsign Index
     STATION_Utils::loadIndex(1);    // lora freq settins Index
     STATION_Utils::nearStationInit();
     startupScreen(loraIndex, versionDate);
 
     #ifdef HAS_WIFI
+        bootStatus("wifi-AP check");
         WIFI_Utils::checkIfWiFiAP();
     #endif
 
+    bootStatus("messages");
     MSG_Utils::loadNumMessages();
+    bootStatus("GPS");
     GPS_Utils::setup();
     currentLoRaType = &Config.loraTypes[loraIndex];
+    bootStatus("LoRa");
     LoRa_Utils::setup();
+    bootStatus("I2C scan");
     Utils::i2cScannerForPeripherals();
+    bootStatus("WX");
     WX_Utils::setup();
 
     #ifdef HAS_WIFI
@@ -189,23 +199,29 @@ void setup() {
     if (bluetoothActive) {
         if (Config.bluetooth.useBLE) {
             #ifdef HAS_NIMBLE
+                bootStatus("BLE");
                 BLE_Utils::setup();
             #endif
         } else {
             #ifdef HAS_BT_CLASSIC
+                bootStatus("BT classic");
                 BLUETOOTH_Utils::setup();
             #endif
         }
     }
 
     #ifdef BUTTON_PIN
+        bootStatus("button");
         BUTTON_Utils::setup();
     #endif
     #ifdef HAS_JOYSTICK
+        bootStatus("joystick");
         JOYSTICK_Utils::setup();
     #endif
+    bootStatus("keyboard");
     KEYBOARD_Utils::setup();
     #ifdef HAS_TOUCHSCREEN
+        bootStatus("touch");
         TOUCH_Utils::setup();
     #endif
 
@@ -219,8 +235,10 @@ void setup() {
     POWER_Utils::lowerCpuFrequency();
     logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "Main", "Smart Beacon is: %s", Utils::getSmartBeaconState());
     logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Main", "Setup Done!");
+    bootStatus("serial CLI");
     SERIAL_Setup::setup();
     menuDisplay = 0;
+    bootStatus("READY");
 }
 
 void loop() {
