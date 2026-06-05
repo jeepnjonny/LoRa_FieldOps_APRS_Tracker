@@ -24,10 +24,6 @@
 #include "display.h"
 
 
-#ifdef ADC_CTRL
-    uint32_t    adcCtrlTime         = 0;
-    uint8_t     measuringState      = 0;
-#endif
 
 #ifdef HAS_AXP192
     extern XPowersAXP192 PMU;
@@ -72,6 +68,13 @@ namespace BATTERY_Utils {
                     pinMode(ADC_CTRL_PIN, OUTPUT);
                     digitalWrite(ADC_CTRL_PIN, ADC_CTRL_ENABLED);
                     delay(2);
+                #elif defined(ADC_CTRL)
+                    // All other ADC_CTRL boards (Heltec V3 family etc.):
+                    // enable the divider FET, wait for the node to settle,
+                    // then read.  adc_ctrl_ON/OFF handle board-specific
+                    // polarity (HIGH or LOW) so this site stays generic.
+                    POWER_Utils::adc_ctrl_ON();
+                    delay(50);
                 #endif
                 int sampleSum = 0;
                 analogRead(BATTERY_PIN);    // Dummy Read
@@ -83,6 +86,8 @@ namespace BATTERY_Utils {
                 int adc_value = sampleSum/averageReadings;
                 #ifdef ADC_CTRL_PIN
                     digitalWrite(ADC_CTRL_PIN, !ADC_CTRL_ENABLED);
+                #elif defined(ADC_CTRL)
+                    POWER_Utils::adc_ctrl_OFF();
                 #endif
                 #ifdef ARDUINO_ARCH_NRF52
                     // Matches POWER_Utils::setup's analogReference(AR_INTERNAL_3_0)
@@ -146,43 +151,19 @@ namespace BATTERY_Utils {
             }
         #elif defined(BATTERY_PIN)
             if (batteryMeasurmentTime == 0 || (millis() - batteryMeasurmentTime) > 60 * 1000){ //At least 60 seconds have to pass between measurements
+                obtainBatteryInfo();
                 #ifdef ADC_CTRL
-                    switch(measuringState){
-                        case 0:     // Initial Measurement
-                            POWER_Utils::adc_ctrl_ON();
-                            adcCtrlTime = millis();
-                            delay(50);
-                            obtainBatteryInfo();
-                            POWER_Utils::adc_ctrl_OFF();
-                            measuringState = 1;
-                            break;
-                        case 1:     //ADC_CTRL_ON State
-                            POWER_Utils::adc_ctrl_ON();
-                            adcCtrlTime = millis();
-                            measuringState = 2;
-                            break;
-                        case 2:     // Measurement State
-                            if((millis() - adcCtrlTime) > 50){ //At least 50ms have to pass after ADC_Ctrl Mosfet is turned on for voltage to stabilize
-                                obtainBatteryInfo();
-                                POWER_Utils::adc_ctrl_OFF();
-                                measuringState = 1;
-
-                                // Only shut down if a battery is actually present.
-                                // Without a battery the ADC reads ~0 V through the
-                                // divider; batteryConnected is false in that case.
-                                if (batteryConnected &&
-                                    batteryVoltage.toFloat() < (Config.battery.sleepVoltage - 0.1)) {
-                                    displayStatus("!BATTERY!", "",
-                                                  "LOW VOLTAGE",
-                                                  batteryVoltage + "V",
-                                                  "Shutting down...", "", "");
-                                    POWER_Utils::shutdown();
-                                }
-                            }
-                            break;
+                    // Only shut down if a battery is actually present.
+                    // Without a battery the ADC reads ~0 V through the
+                    // divider; batteryConnected is false in that case.
+                    if (batteryConnected &&
+                        batteryVoltage.toFloat() < (Config.battery.sleepVoltage - 0.1)) {
+                        displayStatus("!BATTERY!", "",
+                                      "LOW VOLTAGE",
+                                      batteryVoltage + "V",
+                                      "Shutting down...", "", "");
+                        POWER_Utils::shutdown();
                     }
-                #else
-                    obtainBatteryInfo();
                 #endif
                 batteryMeasurmentTime = millis();
             }

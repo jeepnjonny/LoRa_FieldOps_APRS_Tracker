@@ -94,24 +94,31 @@ namespace POWER_Utils {
 
     #ifdef ADC_CTRL
         void adc_ctrl_ON() {
-            #if defined(HELTEC_WIRELESS_TRACKER) || defined(HELTEC_V3_2_GPS) || defined(HELTEC_V3_2_TNC)
+            // HIGH enables divider: WIRELESS_TRACKER, V3.2 family, V3_433_APRS
+            // (NMOS switch on GND side of divider — gate HIGH = transistor ON = divider connected)
+            #if defined(HELTEC_WIRELESS_TRACKER) || defined(HELTEC_V3_2_GPS) || \
+                defined(HELTEC_V3_2_TNC)         || defined(HELTEC_V3_433_APRS)
                 digitalWrite(ADC_CTRL, HIGH);
             #endif
-            // V3 family: drive ADC_CTRL LOW to enable the VBAT voltage divider
+            // LOW enables divider: original V3 / V2 family
+            // (PMOS switch on VBAT side — gate LOW = transistor ON = divider connected)
             #if defined(HELTEC_V3_GPS) || defined(HELTEC_V3_TNC) || \
                 defined(HELTEC_V2_GPS) || defined(HELTEC_V2_GPS_915) || defined(HELTEC_V2_TNC) || \
-                defined(HELTEC_WSL_V3_GPS_DISPLAY) || defined(HELTEC_V3_433_APRS)
+                defined(HELTEC_WSL_V3_GPS_DISPLAY)
                 digitalWrite(ADC_CTRL, LOW);
             #endif
         }
 
         void adc_ctrl_OFF() {
-            #if defined(HELTEC_WIRELESS_TRACKER) || defined(HELTEC_V3_2_GPS) || defined(HELTEC_V3_2_TNC)
+            // LOW disables: boards that use HIGH to enable
+            #if defined(HELTEC_WIRELESS_TRACKER) || defined(HELTEC_V3_2_GPS) || \
+                defined(HELTEC_V3_2_TNC)         || defined(HELTEC_V3_433_APRS)
                 digitalWrite(ADC_CTRL, LOW);
             #endif
+            // HIGH disables: boards that use LOW to enable
             #if defined(HELTEC_V3_GPS) || defined(HELTEC_V3_TNC) || \
                 defined(HELTEC_V2_GPS) || defined(HELTEC_V2_GPS_915) || defined(HELTEC_V2_TNC) || \
-                defined(HELTEC_WSL_V3_GPS_DISPLAY) || defined(HELTEC_V3_433_APRS)
+                defined(HELTEC_WSL_V3_GPS_DISPLAY)
                 digitalWrite(ADC_CTRL, HIGH);
             #endif
         }
@@ -371,6 +378,9 @@ namespace POWER_Utils {
 
         #ifdef BATTERY_PIN
             pinMode(BATTERY_PIN, INPUT);
+            #ifndef ARDUINO_ARCH_NRF52
+                analogSetPinAttenuation(BATTERY_PIN, ADC_11db);
+            #endif
         #endif
 
         #ifdef VEXT_CTRL
@@ -380,6 +390,7 @@ namespace POWER_Utils {
 
         #ifdef ADC_CTRL
             pinMode(ADC_CTRL, OUTPUT);
+            adc_ctrl_OFF();  // Divider disabled by default; monitor() enables per sample
         #endif
 
         #ifdef HELTEC_T114
