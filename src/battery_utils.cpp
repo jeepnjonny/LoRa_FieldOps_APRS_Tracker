@@ -139,13 +139,13 @@ namespace BATTERY_Utils {
 
     void monitor() {
         #if defined(HAS_AXP192) || defined(HAS_AXP2101)
-            if (batteryMeasurmentTime == 0 || (millis() - batteryMeasurmentTime) > 1 * 1000){
+            if (batteryMeasurmentTime == 0 || (millis() - batteryMeasurmentTime) > 60 * 1000){
                 obtainBatteryInfo();
                 POWER_Utils::handleChargingLed();
                 batteryMeasurmentTime = millis();
             }
         #elif defined(BATTERY_PIN)
-            if (batteryMeasurmentTime == 0 || (millis() - batteryMeasurmentTime) > 30 * 1000){ //At least 30 seconds have to pass between measurements
+            if (batteryMeasurmentTime == 0 || (millis() - batteryMeasurmentTime) > 60 * 1000){ //At least 60 seconds have to pass between measurements
                 #ifdef ADC_CTRL
                     switch(measuringState){
                         case 0:     // Initial Measurement
