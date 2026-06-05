@@ -39,6 +39,7 @@
     #define BATTERY_PIN         1
     #define VEXT_CTRL           36
     #define ADC_CTRL            37  // Drive LOW to enable VBAT divider
+    #define INTERNAL_LED_PIN    35  // Onboard white LED
 
     #define BOARD_I2C_SDA       41
     #define BOARD_I2C_SCL       42

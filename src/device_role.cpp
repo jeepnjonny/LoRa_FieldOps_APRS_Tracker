@@ -115,8 +115,8 @@ namespace DeviceRoleUtils {
             APRS_IS_Utils::connect();
         }
 
-        // Start TCP KISS server
-        if (Config.tcpKISS.enabled) {
+        // TCP KISS server — start automatically whenever WiFi STA is up
+        if (WIFI_Utils::isSTAConnected()) {
             TCP_KISS_Utils::setup();
         }
 

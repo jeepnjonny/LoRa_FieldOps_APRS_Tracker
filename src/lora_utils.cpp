@@ -25,6 +25,7 @@
 #include "board_pinout.h"
 #include "lora_utils.h"
 #include "display.h"
+#include "led_utils.h"
 
 extern logging::Logger  logger;
 extern Configuration    Config;
@@ -219,12 +220,13 @@ namespace LoRa_Utils {
             return;
         }
 
+        displayTx(newPacket);
+
         if (Config.ptt.active) {
             digitalWrite(Config.ptt.io_pin, Config.ptt.reverse ? LOW : HIGH);
             delay(Config.ptt.preDelay);
         }
-        if (Config.notification.ledTx) digitalWrite(Config.notification.ledTxPin, HIGH);
-        // buzzer removed (notification_utils not included in this build)
+        LED_Utils::txRxFlash();
 
         #if defined(TTGO_T_BEAM_1W)
             digitalWrite(RADIO_RXEN, LOW);
@@ -238,7 +240,6 @@ namespace LoRa_Utils {
             Serial.println(state);
         }
 
-        if (Config.notification.ledTx) digitalWrite(Config.notification.ledTxPin, LOW);
         if (Config.ptt.active) {
             delay(Config.ptt.postDelay);
             digitalWrite(Config.ptt.io_pin, Config.ptt.reverse ? HIGH : LOW);

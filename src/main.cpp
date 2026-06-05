@@ -16,12 +16,12 @@
 #include "smartbeacon_utils.h"
 #include "lora_utils.h"
 #include "gps_utils.h"
-#include "battery_utils.h"
+#include "battery_utils.h"   // getBatteryInfoVoltage, getPercentVoltageBattery
 #include "power_utils.h"
-#include "sleep_utils.h"
 #include "display.h"
 #include "serial_setup.h"
 #include "station_utils.h"
+#include "led_utils.h"
 #include "device_role.h"
 #include "kiss_utils.h"
 #include "digi_utils.h"
@@ -31,7 +31,7 @@
 #include "aprs_is_utils.h"
 #include "tcp_kiss_utils.h"
 #endif
-#ifdef HAS_NIMBLE
+#if defined(HAS_NIMBLE) || defined(ARDUINO_ARCH_NRF52)
 #include "ble_utils.h"
 #endif
 #ifdef HAS_BT_CLASSIC
@@ -64,11 +64,15 @@ uint32_t lastBeaconCheck    = 0;  // SmartBeacon interval ticker
 
 // GPS / beacon state — shared via extern across TUs.
 // gpsIsActive is defined in gps_utils.cpp (starts false, set true in GPS_Utils::setup).
-// sendStandingUpdate is defined in station_utils.cpp.
-// gpsShouldSleep is defined in sleep_utils.cpp.
 // disableGPS is defined in power_utils.cpp.
 bool     sendUpdate         = true;
-extern bool gpsShouldSleep;
+
+// USR button — short press: position beacon; long press (≥3 s): status beacon.
+#ifdef BUTTON_PIN
+static uint32_t btnPressTime = 0;
+static bool     btnActive    = false;
+#endif
+
 extern bool disableGPS;
 extern bool gpsIsActive;
 
@@ -81,13 +85,9 @@ LoraType*    currentLoRaType  = nullptr;  // initialized in setup() after Config
 uint32_t     txInterval       = 60000L;   // SmartBeacon TX interval (ms), updated by smartbeacon_utils
 bool         miceActive       = false;    // set true if beacons[0].micE is valid
 
-// Legacy state flags referenced from serial_setup.cpp.
-bool         digipeaterActive = false;
-bool         bluetoothActive  = false;
-bool         displayEcoMode   = false;
-
-// GPS timing — referenced by sleep_utils.cpp via extern.
-uint32_t     lastGPSTime      = 0;
+// Runtime state flags — mirrored from Config at boot, updated live by serial CLI.
+bool         digipeaterActive = false;   // mirrors Config.digiMode != DIGI_OFF
+bool         bluetoothActive  = false;   // mirrors Config.bluetooth.active
 
 logging::Logger logger;
 
@@ -110,13 +110,19 @@ void setup() {
     miceActive       = APRSPacketLib::validateMicE(currentBeacon->micE);
     digipeaterActive = (Config.digiMode != DIGI_OFF);
     bluetoothActive  = Config.bluetooth.active;
-    displayEcoMode   = Config.display.ecoMode;
 
     POWER_Utils::setup();
     displaySetup();
     bootStatus("power OK");
 
     POWER_Utils::externalPinSetup();
+    LED_Utils::setup();
+
+    // USR button — active-LOW on all boards; set up here so it's ready before
+    // the HAS_WIFI block does its own AP-mode check.
+    #ifdef BUTTON_PIN
+        pinMode(BUTTON_PIN, INPUT_PULLUP);
+    #endif
     bootStatus("GPS");
     GPS_Utils::setup();
 
@@ -124,8 +130,19 @@ void setup() {
     LoRa_Utils::setup();
 
     #ifdef HAS_WIFI
+        // Read USR button at boot (active-LOW, INPUT_PULLUP).
+        // Hold the button while powering on to force AP config mode.
+        bool apButtonHeld = false;
+        #ifdef BUTTON_PIN
+            pinMode(BUTTON_PIN, INPUT_PULLUP);
+            delay(10);   // settle
+            apButtonHeld = (digitalRead(BUTTON_PIN) == LOW);
+            if (apButtonHeld)
+                logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Main",
+                           "USR button held at boot — AP config mode requested");
+        #endif
         bootStatus("WiFi AP check");
-        WIFI_Utils::checkIfWiFiAP();
+        WIFI_Utils::checkIfWiFiAP(apButtonHeld);
         if (Config.deviceRole != ROLE_IGATE) {
             WiFi.mode(WIFI_OFF);
         }
@@ -135,17 +152,15 @@ void setup() {
     DeviceRoleUtils::initializeRole(Config.deviceRole);
 
     if (Config.bluetooth.active) {
-        if (Config.bluetooth.useBLE) {
-            #ifdef HAS_NIMBLE
-                bootStatus("BLE");
-                BLE_Utils::setup();
-            #endif
-        } else {
-            #ifdef HAS_BT_CLASSIC
-                bootStatus("BT classic");
-                BLUETOOTH_Utils::setup();
-            #endif
-        }
+        // Stack is board-determined: nRF52 or ESP32 with NimBLE → BLE KISS,
+        // plain BT-Classic-only ESP32 → SPP KISS.
+        #if defined(ARDUINO_ARCH_NRF52) || defined(HAS_NIMBLE)
+            bootStatus("BLE KISS TNC");
+            BLE_Utils::setup();
+        #elif defined(HAS_BT_CLASSIC)
+            bootStatus("BT KISS TNC");
+            BLUETOOTH_Utils::setup();
+        #endif
     }
 
     #ifdef ARDUINO_ARCH_NRF52
@@ -162,12 +177,39 @@ void setup() {
 
 
 void loop() {
+    // ── LED heartbeat / TX / RX indicator ──────────────────────────────
+    LED_Utils::tick();
+
     // ── Serial CLI + serial KISS ────────────────────────────────────────
     SERIAL_Setup::loop();
+
+    // ── USR button ──────────────────────────────────────────────────────
+    // Short press (≥50 ms, <3 s): send position beacon immediately.
+    // Long press  (≥3 s):         send status beacon (beacons[0].status text).
+    #ifdef BUTTON_PIN
+    {
+        bool btnDown = (digitalRead(BUTTON_PIN) == LOW);
+        if (btnDown && !btnActive) {
+            btnActive    = true;
+            btnPressTime = millis();
+        } else if (!btnDown && btnActive) {
+            uint32_t held = millis() - btnPressTime;
+            btnActive = false;
+            displayActivity();   // any button release wakes the display
+            if (held >= 3000) {
+                STATION_Utils::sendStatusBeacon();
+            } else if (held >= 50) {
+                STATION_Utils::sendBeacon();
+            }
+        }
+    }
+    #endif
 
     // ── Receive LoRa ────────────────────────────────────────────────────
     ReceivedLoRaPacket rx = LoRa_Utils::receivePacket();
     if (rx.text.length() > 3) {
+        LED_Utils::txRxFlash();
+        displayActivity();   // incoming packet wakes the display
         String packet = rx.text.substring(3);   // strip 3-byte RSSI prefix
 
         // Digipeating (any role, controlled by digiMode config)
@@ -181,23 +223,19 @@ void loop() {
         }
         #endif
 
-        // Serial KISS forward
-        if (Config.tcpKISS.serialEnabled && !SERIAL_Setup::isActive()) {
+        // Serial KISS forward — always on in KISS mode
+        if (SERIAL_Setup::isKISSMode()) {
             String kissFrame = KISS_Utils::encodeKISS(packet);
             Serial.write((const uint8_t*)kissFrame.c_str(), kissFrame.length());
         }
 
         // BLE/BT KISS forward
         if (Config.bluetooth.active && bluetoothConnected) {
-            if (Config.bluetooth.useBLE && Config.bluetooth.useKISS) {
-                #ifdef HAS_NIMBLE
-                    BLE_Utils::sendToPhone(packet);
-                #endif
-            } else if (!Config.bluetooth.useBLE) {
-                #ifdef HAS_BT_CLASSIC
-                    BLUETOOTH_Utils::sendToPhone(packet);
-                #endif
-            }
+            #if defined(ARDUINO_ARCH_NRF52) || defined(HAS_NIMBLE)
+                BLE_Utils::sendToPhone(packet);
+            #elif defined(HAS_BT_CLASSIC)
+                BLUETOOTH_Utils::sendToPhone(packet);
+            #endif
         }
 
         STATION_Utils::updateLastHeard(
@@ -207,15 +245,11 @@ void loop() {
 
     // ── BLE / BT inbound (KISS TX) ──────────────────────────────────────
     if (Config.bluetooth.active && bluetoothConnected) {
-        if (Config.bluetooth.useBLE) {
-            #ifdef HAS_NIMBLE
-                BLE_Utils::sendToLoRa();
-            #endif
-        } else {
-            #ifdef HAS_BT_CLASSIC
-                BLUETOOTH_Utils::sendToLoRa();
-            #endif
-        }
+        #if defined(ARDUINO_ARCH_NRF52) || defined(HAS_NIMBLE)
+            BLE_Utils::sendToLoRa();
+        #elif defined(HAS_BT_CLASSIC)
+            BLUETOOTH_Utils::sendToLoRa();
+        #endif
     }
 
     // ── Role periodic tasks (APRS-IS keepalive, TCP KISS clients) ───────
@@ -244,7 +278,6 @@ void loop() {
             STATION_Utils::sendBeacon();
         }
         if (timeUpdated) SMARTBEACON_Utils::checkInterval(speed);
-        SLEEP_Utils::checkIfGPSShouldSleep();
     } else {
         // Fixed position or GPS sleeping — fire beacon on fixed interval
         if (now - lastBeaconCheck >= (uint32_t)Config.nonSmartBeaconRate * 60000UL) {
@@ -256,26 +289,112 @@ void loop() {
     // ── Battery monitor ──────────────────────────────────────────────────
     BATTERY_Utils::monitor();
 
+    // ── Display eco mode timeout check ──────────────────────────────────
+    displayEcoTick(Config.display.ecoMode,
+                   (unsigned long)Config.display.timeout * 1000UL);
+
     // ── Display refresh (once per second) ───────────────────────────────
     if (now - lastDisplayUpdate >= 1000) {
         lastDisplayUpdate = now;
-        String line1 = String(DeviceRoleUtils::getRoleString(Config.deviceRole))
-                     + "  " + Config.beacons[0].callsign;
-        String line2 = "";
-        #ifdef HAS_WIFI
-        if (Config.deviceRole == ROLE_IGATE) {
-            line2 = WIFI_Utils::isSTAConnected()
-                  ? ("IP " + WiFi.localIP().toString())
-                  : "WiFi: not connected";
-        } else
-        #endif
-        if (gpsIsActive && gps.location.isValid()) {
-            line2 = "GPS " + String(gps.satellites.value()) + " sats";
-        } else {
-            line2 = (Config.gpsSource == GPS_FIXED) ? "Fixed pos" : "No GPS fix";
+        const Beacon& b = Config.beacons[0];
+
+        // ── Line 1: callsign + tactical ──────────────────────────────────
+        String callsign = b.callsign;
+        String tactical = b.tacticalCallsign;
+        tactical.trim();
+
+        // ── Line 2: role / mode  +  battery ─────────────────────────────
+        String line2;
+        switch (Config.deviceRole) {
+            case ROLE_TRACKER:
+                line2 = "Tracker";
+                break;
+            case ROLE_IGATE:
+                line2 = "iGate";
+                #ifdef HAS_WIFI
+                line2 += WIFI_Utils::isSTAConnected()
+                       ? ("  " + WiFi.localIP().toString())
+                       : "  No WiFi";
+                #endif
+                break;
+            case ROLE_DIGIPEATER:
+                line2 = "Digi";
+                if      (Config.digiMode == DIGI_WIDE1)       line2 += " WIDE1";
+                else if (Config.digiMode == DIGI_WIDE1_WIDE2) line2 += " WIDE1+W2";
+                break;
+            default:
+                line2 = "Unknown";
+                break;
         }
-        String line3 = STATION_Utils::getLastHeardSummary();
-        String line4 = "Up " + String(millis() / 60000) + "m";
-        displayStatus(line1, line2, line3, line4);
+        {
+            String bv = BATTERY_Utils::getBatteryInfoVoltage();
+            if (bv.length() > 0 && bv.toFloat() > 1.5) {
+                String pct = BATTERY_Utils::getPercentVoltageBattery(bv.toFloat());
+                pct.trim();
+                line2 += "  B:" + pct + "%";
+            }
+        }
+
+        // ── Maidenhead gridsquare (6-char: AAnnll) ───────────────────────
+        // Format: 2 uppercase letters (field) + 2 digits (square) + 2 lowercase letters (subsquare)
+        auto calcGrid = [](double lat, double lon) -> String {
+            double aLon = lon + 180.0;
+            double aLat = lat + 90.0;
+            int fLon  = (int)(aLon / 20.0);
+            int fLat  = (int)(aLat / 10.0);
+            int sLon  = (int)((aLon - fLon * 20.0) / 2.0);
+            int sLat  = (int)(aLat - fLat * 10.0);
+            int ssLon = (int)(((aLon - fLon * 20.0) - sLon * 2.0) * 12.0);
+            int ssLat = (int)(((aLat - fLat * 10.0) - sLat)       * 24.0);
+            char gs[7] = {
+                (char)('A' + fLon),  (char)('A' + fLat),   // uppercase field
+                (char)('0' + sLon),  (char)('0' + sLat),   // digits
+                (char)('a' + ssLon), (char)('a' + ssLat),  // lowercase subsquare
+                '\0'
+            };
+            return String(gs);
+        };
+
+        // ── Lines 3 & 4: position ────────────────────────────────────────
+        // Line 3: lat / lon (4 decimals)
+        // Line 4: 6-char gridsquare (AAnnll) + altitude + speed
+        String line3, line4;
+        bool hasGPSFix = gpsIsActive && gps.location.isValid();
+        if (hasGPSFix) {
+            double lat = gps.location.lat();
+            double lon = gps.location.lng();
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.4f %.4f", lat, lon);
+            line3 = String(buf);
+            snprintf(buf, sizeof(buf), "%s  %dm  %dkm/h",
+                     calcGrid(lat, lon).c_str(),
+                     (int)gps.altitude.meters(), (int)gps.speed.kmph());
+            line4 = String(buf);
+        } else if (Config.gpsSource == GPS_FIXED) {
+            double lat = Config.fixedPosition.latitude;
+            double lon = Config.fixedPosition.longitude;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.4f %.4f", lat, lon);
+            line3 = String(buf);
+            line4 = calcGrid(lat, lon) + "  Fixed Position";
+        } else {
+            line3 = gpsIsActive ? "Waiting for GPS fix" : "No GPS";
+            line4 = "";
+        }
+
+        // ── Line 5: uptime ───────────────────────────────────────────────
+        uint32_t upSec = millis() / 1000;
+        String line5;
+        if (upSec < 3600) {
+            line5 = "Up " + String(upSec / 60) + "m";
+        } else {
+            line5 = "Up " + String(upSec / 3600) + "h" + String((upSec % 3600) / 60) + "m";
+        }
+
+        // ── Line 6: last heard station ───────────────────────────────────
+        String lastRx = STATION_Utils::getLastHeardSummary();
+        String line6 = lastRx.length() > 0 ? "Last: " + lastRx : "";
+
+        displayStatus(callsign, tactical, line2, line3, line4, line5, line6);
     }
 }

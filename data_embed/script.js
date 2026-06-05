@@ -73,6 +73,9 @@ function loadSettings(s) {
     setVal('fixedPosition.longitude', fp.longitude ?? 0);
     setVal('fixedPosition.elevation', fp.elevation ?? 0);
 
+    const wap = s.wifiAP ?? {};
+    setVal('wifiAP.password', wap.password ?? '1234567890');
+
     const wsta = s.wifiSTA ?? {};
     setVal('wifiSTA.enabled',  wsta.enabled  ?? false);
     setVal('wifiSTA.ssid',     wsta.ssid     ?? '');
@@ -87,7 +90,6 @@ function loadSettings(s) {
     const tk = s.tcpKISS ?? {};
     setVal('tcpKISS.enabled',       tk.enabled       ?? false);
     setVal('tcpKISS.port',          tk.port          ?? 8001);
-    setVal('tcpKISS.serialEnabled', tk.serialEnabled ?? false);
 
     const lora = s.lora?.[0] ?? {};
     setVal('lora.0.frequency',      lora.frequency       ?? 433775000);
@@ -115,23 +117,16 @@ function loadSettings(s) {
     const bt = s.bluetooth ?? {};
     setVal('bluetooth.active',     bt.active     ?? false);
     setVal('bluetooth.deviceName', bt.deviceName ?? 'LoRaAPRS');
-    setVal('bluetooth.useBLE',     bt.useBLE     ?? true);
-    setVal('bluetooth.useKISS',    bt.useKISS    ?? false);
 
     const bat = s.battery ?? {};
     setVal('battery.sendVoltage',       bat.sendVoltage       ?? false);
-    setVal('battery.voltageAsTelemetry',bat.voltageAsTelemetry?? false);
     setVal('battery.sendVoltageAlways', bat.sendVoltageAlways ?? false);
-    setVal('battery.monitorVoltage',    bat.monitorVoltage    ?? false);
     setVal('battery.sleepVoltage',      bat.sleepVoltage      ?? 2.9);
 
     const oth = s.other ?? {};
     setVal('path',                    s.path                    ?? oth.beaconPath  ?? 'WIDE1-1');
     setVal('nonSmartBeaconRate',      s.nonSmartBeaconRate      ?? oth.nonSmartBeaconRate  ?? 15);
-    setVal('standingUpdateTime',      s.standingUpdateTime      ?? oth.standingUpdateTime  ?? 15);
-    setVal('rememberStationTime',     s.rememberStationTime     ?? oth.rememberStationTime ?? 30);
     setVal('sendCommentAfterXBeacons',s.sendCommentAfterXBeacons?? oth.sendCommentAfterXBeacons ?? 10);
-    setVal('email',                   s.email                   ?? oth.email ?? '');
     setVal('sendAltitude',            s.sendAltitude            ?? oth.sendAltitude ?? true);
     setVal('digiMode',                s.other?.digiMode         ?? oth.digiMode ?? 0);
 

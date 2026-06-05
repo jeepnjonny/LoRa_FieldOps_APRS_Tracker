@@ -12,6 +12,7 @@
 #include "configuration.h"
 #include "digi_utils.h"
 #include "lora_utils.h"
+#include "station_utils.h"
 #include "logger.h"
 
 extern Configuration    Config;
@@ -93,6 +94,12 @@ namespace DIGI_Utils {
         const String& myCall = Config.beacons[0].callsign;
         String sender = packet.substring(0, packet.indexOf(">"));
         if (sender == myCall) return;
+
+        // Dedup: skip if we've repeated this same payload within the last 30 s.
+        // Uses the shared hash buffer in station_utils (25 slots, djb2, 30 s TTL).
+        int colonIdx = packet.indexOf(":");
+        String payload = (colonIdx >= 0) ? packet.substring(colonIdx + 1) : packet;
+        if (STATION_Utils::isInHashBuffer(sender, payload)) return;
 
         String repeated = generateDigipeatedPacket(packet);
         if (repeated.length() == 0) return;

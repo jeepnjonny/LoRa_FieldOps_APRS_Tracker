@@ -4,9 +4,7 @@
  * (Xastir, APRX, Direwolf in gateway mode, etc.) can connect and exchange
  * packets with the LoRa radio.
  *
- * Also handles serial KISS on the USB-CDC / UART port when
- * Config.bluetooth.useKISS is false but the caller wants raw serial KISS
- * (e.g. with a connected PC running an APRS client).
+ * USB serial KISS is handled in serial_setup.cpp (always on in KISS mode).
  */
 
 #pragma once

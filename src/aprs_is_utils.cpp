@@ -25,6 +25,22 @@ static bool         passcodeValid   = false;
 static uint32_t     lastConnectTry  = 0;
 static const uint32_t RECONNECT_MS  = 30000UL;   // retry interval
 
+// Compute the standard APRS-IS passcode (Friedman algorithm) from a callsign.
+// Strips the SSID (everything after '-') before hashing.
+// Returns the 15-bit passcode as a decimal string.
+static String computePasscode(const String& callsign) {
+    int dash = callsign.indexOf('-');
+    String base = (dash > 0) ? callsign.substring(0, dash) : callsign;
+    base.toUpperCase();
+    uint16_t hash = 0x73e2;
+    for (int i = 0; i < (int)base.length(); i += 2) {
+        hash ^= (uint16_t)(uint8_t)base[i] << 8;
+        if (i + 1 < (int)base.length())
+            hash ^= (uint16_t)(uint8_t)base[i + 1];
+    }
+    return String(hash & 0x7FFF);
+}
+
 namespace APRS_IS_Utils {
 
     bool isConnected() {
@@ -42,7 +58,14 @@ namespace APRS_IS_Utils {
         const String& server   = Config.aprsIS.server;
         uint16_t      port     = Config.aprsIS.port;
         const String& callsign = Config.beacons[0].callsign;
-        const String& passcode = Config.aprsIS.passcode;
+        // Use override passcode if configured; otherwise auto-derive from callsign.
+        bool overridePasscode = Config.aprsIS.passcode.length() > 0;
+        String passcode = overridePasscode
+            ? Config.aprsIS.passcode
+            : computePasscode(callsign);
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "APRS-IS",
+                   "Passcode: %s (%s)", passcode.c_str(),
+                   overridePasscode ? "override" : "auto from callsign");
         const String& filter   = Config.aprsIS.filter;
 
         if (server.length() == 0 || callsign.length() == 0) {

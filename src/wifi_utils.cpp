@@ -25,7 +25,8 @@
 extern      Configuration       Config;
 extern      logging::Logger     logger;
 
-uint32_t    noClientsTime        = 0;
+static constexpr char     AP_SSID[]       = "LoRaTracker-AP";
+static constexpr uint32_t AP_IDLE_TIMEOUT = 2UL * 60UL * 1000UL;   // 2 minutes
 
 
 namespace WIFI_Utils {
@@ -33,7 +34,7 @@ namespace WIFI_Utils {
     void startAutoAP() {
         WiFi.mode(WIFI_MODE_NULL);
         WiFi.mode(WIFI_AP);
-        WiFi.softAP("LoRaTracker-AP", Config.wifiAP.password);
+        WiFi.softAP(AP_SSID, Config.wifiAP.password);
     }
 
     bool isSTAConnected() {
@@ -62,46 +63,42 @@ namespace WIFI_Utils {
         return false;
     }
 
-    void checkIfWiFiAP() {
-        const bool isNoCall      = Config.beacons[0].callsign == "NOCALL-7";
-        const bool forceWebConf  = Config.wifiAP.active || isNoCall;
-        const bool wantStartupAP = forceWebConf || Config.wifiAP.bootWindow;
+    void checkIfWiFiAP(bool buttonHeld) {
+        const bool isNoCall = (Config.beacons[0].callsign == "NOCALL-7");
 
-        if (!wantStartupAP) {
-            logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Main", "Boot AP disabled, skipping web-config");
+        if (!isNoCall && !buttonHeld) {
+            logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Main", "AP mode not triggered, skipping");
             return;
         }
 
-        bootStatus("WiFi AP: 192.168.4.1");
-        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Main", "WebConfiguration Started!");
+        const char* reason = isNoCall ? "NOCALL callsign" : "USR button held";
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Main", "AP mode: %s", reason);
+
         startAutoAP();
         WEB_Utils::setup();
 
-        const uint32_t startupAPStart = millis();
-        bool clientEverConnected = false;
+        bootStatus("WiFi AP: 192.168.4.1");
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Main", "WebConfiguration started");
+        displayAPMode(AP_SSID, Config.wifiAP.password);
+
+        uint32_t noClientsTime = 0;
 
         while (true) {
+            delay(500);
+            displayAPMode(AP_SSID, Config.wifiAP.password);
+
             if (WiFi.softAPgetStationNum() > 0) {
-                clientEverConnected = true;
+                // Client is connected — reset idle timer.
                 noClientsTime = 0;
             } else {
-                if (!forceWebConf && !clientEverConnected && (millis() - startupAPStart) > 30 * 1000) {
-                    logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Main", "Startup AP window expired, continuing boot");
+                // No clients.
+                if (noClientsTime == 0) {
+                    noClientsTime = millis();
+                } else if ((millis() - noClientsTime) > AP_IDLE_TIMEOUT) {
+                    logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Main",
+                               "AP mode: no clients for 2 min, rebooting");
                     WiFi.softAPdisconnect(true);
-                    WiFi.mode(WIFI_OFF);
-                    return;
-                }
-                if (clientEverConnected || forceWebConf) {
-                    if (noClientsTime == 0) {
-                        noClientsTime = millis();
-                    } else if ((millis() - noClientsTime) > 2 * 60 * 1000) {
-                        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Main", "WebConfiguration Stopped!");
-                        bootStatus("Stopping WiFi AP");
-                        Config.wifiAP.active = false;
-                        Config.writeFile();
-                        WiFi.softAPdisconnect(true);
-                        ESP.restart();
-                    }
+                    ESP.restart();
                 }
             }
         }

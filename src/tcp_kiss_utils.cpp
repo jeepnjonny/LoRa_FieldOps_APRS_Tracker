@@ -27,7 +27,6 @@ static String       inputBuf[MAX_KISS_CLIENTS];
 namespace TCP_KISS_Utils {
 
     void setup() {
-        if (!Config.tcpKISS.enabled) return;
         if (tncServer) { delete tncServer; }
         tncServer = new WiFiServer(Config.tcpKISS.port);
         tncServer->begin();
@@ -84,7 +83,7 @@ namespace TCP_KISS_Utils {
     }
 
     void sendToClients(const String& packet) {
-        if (!tncServer || !Config.tcpKISS.enabled) return;
+        if (!tncServer) return;
         String kissFrame = KISS_Utils::encodeKISS(packet);
         for (int i = 0; i < MAX_KISS_CLIENTS; i++) {
             if (clients[i].connected()) {

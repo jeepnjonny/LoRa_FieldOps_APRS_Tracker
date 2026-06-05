@@ -142,7 +142,6 @@ namespace WEB_Utils {
             if (tac.length() > 9) tac = tac.substring(0, 9);
             Config.beacons[0].tacticalCallsign = tac;
         }
-        Config.beacons[0].gpsEcoMode        = request->hasParam("beacons.0.gpsEcoMode",       true);
         Config.beacons[0].smartBeaconActive  = request->hasParam("beacons.0.smartBeaconActive", true);
         Config.beacons[0].smartBeaconSetting = getParamIntSafe("beacons.0.smartBeaconSetting",  Config.beacons[0].smartBeaconSetting);
 
@@ -150,27 +149,19 @@ namespace WEB_Utils {
         Config.beaconPath = getParamStringSafe("beaconPath", getParamStringSafe("path", Config.beaconPath));
         Config.sendCommentAfterXBeacons         = getParamIntSafe("sendCommentAfterXBeacons", Config.sendCommentAfterXBeacons);
         Config.nonSmartBeaconRate               = getParamIntSafe("nonSmartBeaconRate", Config.nonSmartBeaconRate);
-        Config.standingUpdateTime               = getParamIntSafe("standingUpdateTime", Config.standingUpdateTime);
-        Config.email                            = getParamStringSafe("email", Config.email);
-        Config.rememberStationTime              = getParamIntSafe("rememberStationTime", Config.rememberStationTime);
         Config.sendAltitude                     = request->hasParam("sendAltitude", true);
-        Config.disableGPS                       = request->hasParam("disableGPS", true);
-        Config.simplifiedTrackerMode            = request->hasParam("simplifiedTrackerMode", true);
-
         //  Display
         Config.display.ecoMode                  = request->hasParam("display.ecoMode", true);
         if (Config.display.ecoMode) {
             Config.display.timeout              = getParamIntSafe("display.timeout", Config.display.timeout);
         }
         Config.display.turn180                  = request->hasParam("display.turn180", true);
-        Config.display.showSymbol               = request->hasParam("display.showSymbol", true);
+        Config.display.ledEnabled               = request->hasParam("display.ledEnabled", true);
 
         //  Bluetooth
         Config.bluetooth.active                 = request->hasParam("bluetooth.active", true);
         if (Config.bluetooth.active) {
             Config.bluetooth.deviceName         = getParamStringSafe("bluetooth.deviceName", Config.bluetooth.deviceName);
-            Config.bluetooth.useBLE             = request->hasParam("bluetooth.useBLE", true);
-            Config.bluetooth.useKISS            = request->hasParam("bluetooth.useKISS", true);
         }
 
         // LoRa (single)
@@ -182,26 +173,11 @@ namespace WEB_Utils {
 
         //  Battery
         Config.battery.sendVoltage              = request->hasParam("battery.sendVoltage", true);
-        if (Config.battery.sendVoltage) {
-            Config.battery.voltageAsTelemetry   = request->hasParam("battery.voltageAsTelemetry", true);
-            Config.battery.sendVoltageAlways    = request->hasParam("battery.sendVoltageAlways", true);
-        }
-        Config.battery.monitorVoltage           = request->hasParam("battery.monitorVoltage", true);
-        if (Config.battery.monitorVoltage) Config.battery.sleepVoltage = getParamFloatSafe("battery.sleepVoltage", Config.battery.sleepVoltage);
-
-        //  Telemetry
-        Config.telemetry.active                 = request->hasParam("telemetry.active", true);
-        if (Config.telemetry.active) {
-            Config.telemetry.sendTelemetry          = request->hasParam("telemetry.sendTelemetry", true);
-            Config.telemetry.temperatureCorrection  = getParamFloatSafe("telemetry.temperatureCorrection", Config.telemetry.temperatureCorrection);
-        }
-
-        //  Winlink
-        Config.winlink.password                 = getParamStringSafe("winlink.password", Config.winlink.password);
+        Config.battery.sendVoltageAlways        = request->hasParam("battery.sendVoltageAlways", true);
+        Config.battery.sleepVoltage             = getParamFloatSafe("battery.sleepVoltage", Config.battery.sleepVoltage);
 
         //  WiFi AP
         Config.wifiAP.password                  = getParamStringSafe("wifiAP.password", Config.wifiAP.password);
-        Config.wifiAP.active                    = false; // when Configuration is finished Tracker returns to normal mode.
 
         //  Device Role & GPS Source
         Config.deviceRole   = (DeviceRole) getParamIntSafe("deviceRole",  (int)Config.deviceRole);
@@ -225,9 +201,7 @@ namespace WEB_Utils {
         Config.aprsIS.filter   = getParamStringSafe("aprsIS.filter",   Config.aprsIS.filter);
 
         //  TCP KISS server
-        Config.tcpKISS.enabled        = request->hasParam("tcpKISS.enabled",       true);
         Config.tcpKISS.port           = getParamIntSafe("tcpKISS.port",            Config.tcpKISS.port);
-        Config.tcpKISS.serialEnabled  = request->hasParam("tcpKISS.serialEnabled", true);
 
         //  SmartBeacon custom profile (profile index 3)
         Config.customSmartBeacon.slowRate       = getParamIntSafe("customSmartBeacon.slowRate",      Config.customSmartBeacon.slowRate);
@@ -238,25 +212,6 @@ namespace WEB_Utils {
         Config.customSmartBeacon.minDeltaBeacon = getParamIntSafe("customSmartBeacon.minDeltaBeacon",Config.customSmartBeacon.minDeltaBeacon);
         Config.customSmartBeacon.turnMinDeg     = getParamIntSafe("customSmartBeacon.turnMinDeg",    Config.customSmartBeacon.turnMinDeg);
         Config.customSmartBeacon.turnSlope      = getParamIntSafe("customSmartBeacon.turnSlope",     Config.customSmartBeacon.turnSlope);
-
-        //  Notification
-        Config.notification.ledTx               = request->hasParam("notification.ledTx", true);
-        if (Config.notification.ledTx) Config.notification.ledTxPin = getParamIntSafe("notification.ledTxPin", Config.notification.ledTxPin);
-        Config.notification.ledMessage          = request->hasParam("notification.ledMessage", true);
-        if (Config.notification.ledMessage) Config.notification.ledMessagePin = getParamIntSafe("notification.ledMessagePin", Config.notification.ledMessagePin);
-        Config.notification.buzzerActive        = request->hasParam("notification.buzzerActive", true);
-        if (Config.notification.buzzerActive) {
-            Config.notification.buzzerPinTone   = getParamIntSafe("notification.buzzerPinTone", Config.notification.buzzerPinTone);
-            Config.notification.buzzerPinVcc    = getParamIntSafe("notification.buzzerPinVcc", Config.notification.buzzerPinVcc);
-            Config.notification.bootUpBeep      = request->hasParam("notification.bootUpBeep", true);
-            Config.notification.txBeep          = request->hasParam("notification.txBeep", true);
-            Config.notification.messageRxBeep   = request->hasParam("notification.messageRxBeep", true);
-            Config.notification.stationBeep     = request->hasParam("notification.stationBeep", true);
-            Config.notification.lowBatteryBeep  = request->hasParam("notification.lowBatteryBeep", true);
-            Config.notification.shutDownBeep    = request->hasParam("notification.shutDownBeep", true);
-        }
-        Config.notification.ledFlashlight           = request->hasParam("notification.ledFlashlight", true);
-        if (Config.notification.ledFlashlight) Config.notification.ledFlashlightPin = getParamIntSafe("notification.ledFlashlightPin", Config.notification.ledFlashlightPin);
 
         //  PTT Trigger
         Config.ptt.active                       = request->hasParam("ptt.active", true);

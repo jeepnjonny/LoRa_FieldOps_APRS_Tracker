@@ -94,12 +94,6 @@
                                                     <option value="3">Custom</option>
                                                 </select>
                                             </div>
-                                            <div class="col-md-6 d-flex align-items-end">
-                                                <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" id="beacons.0.gpsEcoMode" name="beacons.0.gpsEcoMode" />
-                                                    <label class="form-check-label" for="beacons.0.gpsEcoMode">GPS Eco Mode (sleep GPS between fixes)</label>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -126,10 +120,9 @@
                                             <div class="col-md-4">
                                                 <label class="form-label" for="gpsSource">GPS Source</label>
                                                 <select class="form-select" id="gpsSource" name="gpsSource">
-                                                    <option value="0">Internal GPS</option>
-                                                    <option value="1">Fixed Position</option>
-                                                    <option value="2">External Serial</option>
-                                                    <option value="3">External BLE</option>
+                                                    <option value="0">0 — Internal GPS</option>
+                                                    <option value="1">1 — Fixed Position</option>
+                                                    <option value="2">2 — None (TNC/relay only)</option>
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
@@ -159,11 +152,21 @@
                                                 </div>
                                             </div>
 
+                                            <!-- WiFi AP -->
+                                            <div class="col-12"><h6>WiFi AP (config mode)</h6>
+                                                <small class="text-muted">AP starts when callsign is NOCALL-7 or the USR button is held at boot.</small>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label" for="wifiAP.password">AP Password</label>
+                                                <input type="text" class="form-control" id="wifiAP.password" name="wifiAP.password" />
+                                            </div>
+
                                             <!-- WiFi STA -->
+                                            <div class="col-12"><h6>WiFi STA</h6></div>
                                             <div class="col-12">
                                                 <div class="form-check form-switch">
                                                     <input class="form-check-input" type="checkbox" id="wifiSTA.enabled" name="wifiSTA.enabled" />
-                                                    <label class="form-check-label" for="wifiSTA.enabled">WiFi STA (connect to existing network)</label>
+                                                    <label class="form-check-label" for="wifiSTA.enabled">Connect to existing network</label>
                                                 </div>
                                             </div>
                                             <div class="col-md-5">
@@ -188,8 +191,8 @@
                                                         <input type="number" class="form-control" id="aprsIS.port" name="aprsIS.port" />
                                                     </div>
                                                     <div class="col-md-3">
-                                                        <label class="form-label" for="aprsIS.passcode">Passcode</label>
-                                                        <input type="text" class="form-control" id="aprsIS.passcode" name="aprsIS.passcode" />
+                                                        <label class="form-label" for="aprsIS.passcode">Passcode <span class="text-muted fw-normal small">(override)</span></label>
+                                                        <input type="text" class="form-control" id="aprsIS.passcode" name="aprsIS.passcode" placeholder="auto (derived from callsign)" />
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label class="form-label" for="aprsIS.filter">Filter</label>
@@ -203,20 +206,11 @@
                                                 <hr /><h6>TCP KISS Server</h6>
                                                 <div class="row g-3">
                                                     <div class="col-md-3">
-                                                        <div class="form-check form-switch mt-4">
-                                                            <input class="form-check-input" type="checkbox" id="tcpKISS.enabled" name="tcpKISS.enabled" />
-                                                            <label class="form-check-label" for="tcpKISS.enabled">TCP KISS enabled</label>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-3">
                                                         <label class="form-label" for="tcpKISS.port">TCP Port</label>
                                                         <input type="number" class="form-control" id="tcpKISS.port" name="tcpKISS.port" />
                                                     </div>
-                                                    <div class="col-md-4">
-                                                        <div class="form-check form-switch mt-4">
-                                                            <input class="form-check-input" type="checkbox" id="tcpKISS.serialEnabled" name="tcpKISS.serialEnabled" />
-                                                            <label class="form-check-label" for="tcpKISS.serialEnabled">Serial KISS (USB)</label>
-                                                        </div>
+                                                    <div class="col-md-6">
+                                                        <p class="form-text mt-4 mb-0">TCP KISS server starts automatically when WiFi STA is connected.<br>USB serial is always KISS TNC. Type <code>setup</code> or <code>log</code> to switch modes.</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -353,8 +347,8 @@
                                             </div>
                                             <div class="col-md-4">
                                                 <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" id="display.showSymbol" name="display.showSymbol" />
-                                                    <label class="form-check-label" for="display.showSymbol">Show APRS Symbol</label>
+                                                    <input class="form-check-input" type="checkbox" id="display.ledEnabled" name="display.ledEnabled" />
+                                                    <label class="form-check-label" for="display.ledEnabled">LED indicator</label>
                                                 </div>
                                             </div>
                                         </div>
@@ -383,32 +377,30 @@
                                                 <input type="text" class="form-control" id="bluetooth.deviceName" name="bluetooth.deviceName" maxlength="20" />
                                             </div>
                                             <div class="col-md-4">
-                                                <div class="form-check form-switch mt-4">
-                                                    <input class="form-check-input" type="checkbox" id="bluetooth.useBLE" name="bluetooth.useBLE" />
-                                                    <label class="form-check-label" for="bluetooth.useBLE">Use BLE (vs BT Classic)</label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" id="bluetooth.useKISS" name="bluetooth.useKISS" />
-                                                    <label class="form-check-label" for="bluetooth.useKISS">KISS framing over BT</label>
-                                                </div>
+                                                <p class="form-text mt-4 mb-0">KISS TNC — connects to APRS.fi, APRSDroid, Pinpoint.</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- 7. Battery -->
+                            <!-- 7. Battery & Altitude -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#batterySection">
-                                        Battery
+                                        Battery &amp; Altitude
                                     </button>
                                 </h2>
                                 <div id="batterySection" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
                                     <div class="accordion-body">
                                         <div class="row g-3">
+                                            <div class="col-md-4">
+                                                <div class="form-check form-switch mt-4">
+                                                    <input class="form-check-input" type="checkbox" id="sendAltitude" name="sendAltitude" />
+                                                    <label class="form-check-label" for="sendAltitude">Include Altitude in Beacons</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-12"><hr class="my-1" /></div>
                                             <div class="col-md-4">
                                                 <div class="form-check form-switch">
                                                     <input class="form-check-input" type="checkbox" id="battery.sendVoltage" name="battery.sendVoltage" />
@@ -417,25 +409,13 @@
                                             </div>
                                             <div class="col-md-4">
                                                 <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" id="battery.voltageAsTelemetry" name="battery.voltageAsTelemetry" />
-                                                    <label class="form-check-label" for="battery.voltageAsTelemetry">Voltage as Telemetry</label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-check form-switch">
                                                     <input class="form-check-input" type="checkbox" id="battery.sendVoltageAlways" name="battery.sendVoltageAlways" />
-                                                    <label class="form-check-label" for="battery.sendVoltageAlways">Always Send Voltage</label>
+                                                    <label class="form-check-label" for="battery.sendVoltageAlways">Send Voltage on Every Beacon</label>
                                                 </div>
                                             </div>
                                             <div class="col-md-4">
-                                                <div class="form-check form-switch">
-                                                    <input class="form-check-input" type="checkbox" id="battery.monitorVoltage" name="battery.monitorVoltage" />
-                                                    <label class="form-check-label" for="battery.monitorVoltage">Monitor (sleep on low voltage)</label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label" for="battery.sleepVoltage">Sleep Voltage (V)</label>
-                                                <input type="number" step="0.1" class="form-control" id="battery.sleepVoltage" name="battery.sleepVoltage" />
+                                                <label class="form-label" for="battery.sleepVoltage">Low-Voltage Shutdown (V)</label>
+                                                <input type="number" step="0.1" min="2.5" max="4.0" class="form-control" id="battery.sleepVoltage" name="battery.sleepVoltage" />
                                             </div>
                                         </div>
                                     </div>
@@ -461,26 +441,8 @@
                                                 <input type="number" class="form-control" id="nonSmartBeaconRate" name="nonSmartBeaconRate" min="1" />
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label" for="standingUpdateTime">Standing Update Time (min)</label>
-                                                <input type="number" class="form-control" id="standingUpdateTime" name="standingUpdateTime" min="1" />
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label" for="rememberStationTime">Remember Station Time (min)</label>
-                                                <input type="number" class="form-control" id="rememberStationTime" name="rememberStationTime" min="1" />
-                                            </div>
-                                            <div class="col-md-4">
                                                 <label class="form-label" for="sendCommentAfterXBeacons">Comment Every N Beacons</label>
                                                 <input type="number" class="form-control" id="sendCommentAfterXBeacons" name="sendCommentAfterXBeacons" min="1" />
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label" for="email">Email (optional, for status msgs)</label>
-                                                <input type="email" class="form-control" id="email" name="email" />
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-check form-switch mt-4">
-                                                    <input class="form-check-input" type="checkbox" id="sendAltitude" name="sendAltitude" />
-                                                    <label class="form-check-label" for="sendAltitude">Send Altitude</label>
-                                                </div>
                                             </div>
                                         </div>
                                     </div>

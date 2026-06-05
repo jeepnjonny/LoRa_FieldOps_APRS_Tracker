@@ -22,16 +22,14 @@ extern TinyGPSPlus      gps;
 
 // Declared in main.cpp
 extern bool             sendUpdate;
-extern bool             gpsShouldSleep;
 extern bool             gpsIsActive;
 
 
 // ── Globals defined in this TU ────────────────────────────────────────────────
-// (referenced by smartbeacon_utils.cpp and gps_utils.cpp via extern)
+// smartBeaconActive is owned by smartbeacon_utils.cpp — extern here.
 // currentHeading / previousHeading are defined in gps_utils.cpp.
 
-bool        sendStandingUpdate  = false;
-bool        smartBeaconActive   = false;
+extern bool smartBeaconActive;
 extern double currentHeading;
 extern double previousHeading;
 double      lastTxLat           = 0.0;
@@ -66,52 +64,19 @@ namespace STATION_Utils {
     }
 
 
-    // ── Last-heard circular buffer ────────────────────────────────────────────
+    // ── Last-heard (display) ──────────────────────────────────────────────────
+    // Single most-recently-heard callsign for line3 of the status display.
+    // No buffer, no expiry — always shows whoever was heard last.
 
-    static constexpr int HEARD_SIZE = 8;
-
-    struct HeardEntry {
-        String   callsign;
-        uint32_t lastSeen;
-    };
-
-    static HeardEntry heardBuf[HEARD_SIZE];
-    static int        heardHead = 0;   // next write position (circular)
-    static int        heardCount = 0;
+    static String lastHeardCallsign = "";
 
     void updateLastHeard(const String& callsign) {
         if (callsign.length() == 0) return;
-        uint32_t now = millis();
-        // Update in-place if already present.
-        for (int i = 0; i < HEARD_SIZE; i++) {
-            if (heardBuf[i].callsign == callsign) {
-                heardBuf[i].lastSeen = now;
-                return;
-            }
-        }
-        // Insert at head (overwriting oldest).
-        heardBuf[heardHead] = { callsign, now };
-        heardHead = (heardHead + 1) % HEARD_SIZE;
-        if (heardCount < HEARD_SIZE) heardCount++;
+        lastHeardCallsign = callsign;
     }
 
     String getLastHeardSummary() {
-        uint32_t now = millis();
-        uint32_t expireMs = (uint32_t)Config.rememberStationTime * 60000UL;
-        // Collect up to 3 non-expired entries, most recent first.
-        // Walk backwards from heardHead.
-        String result = "";
-        int found = 0;
-        for (int i = 0; i < HEARD_SIZE && found < 3; i++) {
-            int idx = (heardHead - 1 - i + HEARD_SIZE) % HEARD_SIZE;
-            const HeardEntry& e = heardBuf[idx];
-            if (e.callsign.length() == 0) continue;
-            if (now - e.lastSeen > expireMs) continue;
-            if (result.length() > 0) result += "  ";
-            result += e.callsign;
-            found++;
-        }
-        return result;
+        return lastHeardCallsign;
     }
 
 
@@ -188,7 +153,7 @@ namespace STATION_Utils {
                 b.callsign, "APLRT1", path, tactical, String(ts), b.overlay,
                 APRSPacketLib::encodeGPSIntoBase91(
                     beaconLat, beaconLng, courseDeg, speedKnots,
-                    b.symbol, Config.sendAltitude, altFeet, sendStandingUpdate));
+                    b.symbol, Config.sendAltitude, altFeet, false));
         } else if (b.micE.length() > 0) {
             packet = APRSPacketLib::generateMiceGPSBeaconPacket(
                 b.micE, b.callsign, b.symbol, b.overlay, path,
@@ -198,11 +163,11 @@ namespace STATION_Utils {
                 b.callsign, "APLRT1", path, b.overlay,
                 APRSPacketLib::encodeGPSIntoBase91(
                     beaconLat, beaconLng, courseDeg, speedKnots,
-                    b.symbol, Config.sendAltitude, altFeet, sendStandingUpdate));
+                    b.symbol, Config.sendAltitude, altFeet, false));
         }
 
         // Battery voltage comment.
-        if (Config.battery.sendVoltage && !Config.battery.voltageAsTelemetry) {
+        if (Config.battery.sendVoltage) {
             String bv = BATTERY_Utils::getBatteryInfoVoltage();
             if (bv.length() > 0) {
                 updateCounter++;
@@ -225,8 +190,7 @@ namespace STATION_Utils {
             }
         }
 
-        displayTxFlash();
-        LoRa_Utils::sendNewPacket(packet);
+        LoRa_Utils::sendNewPacket(packet);  // displayTx() is called inside sendNewPacket
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Beacon", "TX: %s", packet.c_str());
 
         if (smartBeaconActive) {
@@ -237,8 +201,19 @@ namespace STATION_Utils {
         }
         lastTxTime      = millis();
         sendUpdate      = false;
-        sendStandingUpdate = false;
-        if (b.gpsEcoMode) gpsShouldSleep = true;
+    }
+
+    void sendStatusBeacon() {
+        const Beacon& b = Config.beacons[0];
+        if (b.status.length() == 0) {
+            // No status text configured — fall back to a normal position beacon.
+            sendBeacon();
+            return;
+        }
+        String packet = b.callsign + ">APLRT1," + Config.beaconPath + ":>" + b.status;
+        LoRa_Utils::sendNewPacket(packet);   // displayTx() fires inside sendNewPacket
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Beacon", "Status TX: %s", packet.c_str());
+        lastTxTime = millis();
     }
 
 }  // namespace STATION_Utils

@@ -17,9 +17,15 @@
 
 void displaySetup() {}
 void displayToggle(bool) {}
+void displayTx(const String&) {}
 void displayTxFlash() {}
+void displayActivity() {}
+void displayEcoTick(bool, unsigned long) {}
 void startupScreen(const String&) {}
-void displayStatus(const String&, const String&, const String&, const String&) {}
+void displayStatus(const String&, const String&,
+                   const String&, const String&, const String&,
+                   const String&, const String&) {}
+void displayAPMode(const String&, const String&) {}
 
 void bootStatus(const char* step) {
     if (!step) return;
@@ -28,6 +34,42 @@ void bootStatus(const char* step) {
 
 #else  // HAS_DISPLAY defined
 
+#include <Arduino.h>
+#include "display.h"
+
+// TX overlay deadline — shared by all display paths.
+// displayStatus() returns early while millis() < txDisplayEnd.
+// Uses unsigned long (= millis() type) to avoid pulling in stdint.h here.
+static unsigned long txDisplayEnd = 0;
+
+// ── Display eco mode state ────────────────────────────────────────────────────
+// lastActivityMs: reset on button press, RX packet, or TX — anything that
+// justifies keeping the display on.  The 1-second status-refresh tick does NOT
+// count; it uses this to decide whether to sleep, not to stay awake.
+// displayOff: true while the display has been blanked by eco timeout.
+static unsigned long _lastActivityMs = 0;   // 0 → treat as "just booted, display is on"
+static bool          _displayOff     = false;
+
+// Wake the display (if sleeping) and reset the eco-mode idle timer.
+// Call from: button press, LoRa RX, LoRa TX.
+void displayActivity() {
+    _lastActivityMs = millis();
+    if (_displayOff) {
+        displayToggle(true);
+        _displayOff = false;
+    }
+}
+
+// Called once per second from the main loop.
+// If eco mode is enabled and the idle timer has expired, blank the display.
+void displayEcoTick(bool ecoMode, unsigned long timeoutMs) {
+    if (!ecoMode || timeoutMs == 0 || _displayOff) return;
+    if (millis() - _lastActivityMs > timeoutMs) {
+        displayToggle(false);
+        _displayOff = true;
+    }
+}
+
 // ── Heltec T114 — Adafruit ST7789 path ───────────────────────────────────────
 #ifdef HAS_TFT_ST7789
 
@@ -35,50 +77,31 @@ void bootStatus(const char* step) {
 #include <Adafruit_ST7789.h>
 #include <SPI.h>
 #include "display.h"
+#include "configuration.h"
 
 // BSP secondary SPI bus (NRF_SPIM2) wired to ST7789_SDA/SCK on P1.9/P1.8.
 extern SPIClass SPI1;
+extern Configuration Config;
 static Adafruit_ST7789 tft(&SPI1, TFT_CS_PIN, TFT_DC_PIN, TFT_RST_PIN);
 
 namespace {
-    constexpr uint16_t COLOR_BG     = 0x0000;   // black
-    constexpr uint16_t COLOR_HEADER = 0xFFE0;   // yellow
-    constexpr uint16_t COLOR_BODY   = 0xFFFF;   // white
-    constexpr uint16_t COLOR_TX     = 0x07E0;   // green for TX flash
-    constexpr int      HEADER_Y     = 0;
-    constexpr int      BODY_Y       = 24;
-    constexpr int      LINE_HEIGHT  = 14;
-    constexpr int      MAX_LINES    = 4;
+    // Colours (RGB565)
+    constexpr uint16_t COLOR_BG   = 0x0000;   // black background
+    constexpr uint16_t COLOR_HDR  = 0xFFE0;   // yellow  – callsign / separator
+    constexpr uint16_t COLOR_BODY = 0xFFFF;   // white   – body text
+    constexpr uint16_t COLOR_TX   = 0x07E0;   // green   – TX overlay
+    constexpr uint16_t COLOR_DIM  = 0x5D1F;   // sky blue – secondary callsign under tactical
 
-    String  _prevHeader = "\xFF";
-    String  _prevLines[MAX_LINES];
-    bool    _cacheValid = false;
-    bool    _tftReady   = false;
+    bool    _tftReady    = false;
+    bool    _cacheValid  = false;
+    String  _prevCall    = "\xFF";
+    String  _prevTactical= "\xFF";
+    String  _prevLine2   = "\xFF";
+    String  _prevLine3  = "\xFF";
+    String  _prevLine4  = "\xFF";
+    String  _prevLine5  = "\xFF";
+    String  _prevLine6  = "\xFF";
 
-    void drawScreen(const String& header, const String* lines, int nLines) {
-        const int16_t w = tft.width();
-        if (!_cacheValid || header != _prevHeader) {
-            tft.fillRect(0, HEADER_Y, w, 16, COLOR_BG);
-            tft.setCursor(0, HEADER_Y);
-            tft.setTextSize(2);
-            tft.setTextColor(COLOR_HEADER);
-            tft.print(header);
-            _prevHeader = header;
-        }
-        tft.setTextSize(1);
-        tft.setTextColor(COLOR_BODY);
-        int y = BODY_Y;
-        for (int i = 0; i < nLines && i < MAX_LINES; i++) {
-            if (!_cacheValid || lines[i] != _prevLines[i]) {
-                tft.fillRect(0, y, w, LINE_HEIGHT, COLOR_BG);
-                tft.setCursor(0, y);
-                tft.print(lines[i]);
-                _prevLines[i] = lines[i];
-            }
-            y += LINE_HEIGHT;
-        }
-        _cacheValid = true;
-    }
 }
 
 void displaySetup() {
@@ -92,7 +115,7 @@ void displaySetup() {
     digitalWrite(TFT_BL_PIN, LOW);  // backlight on (active-LOW per T114 variant.h)
     SPI1.begin();
     tft.init(135, 240);
-    tft.setRotation(1);             // landscape 240x135
+    tft.setRotation(Config.display.turn180 ? 3 : 1);   // landscape; 3 = flipped 180°
     tft.fillScreen(COLOR_BG);
     tft.setTextWrap(false);
     _tftReady = true;
@@ -106,11 +129,11 @@ void bootStatus(const char* step) {
     if (!step) return;
     Serial.print(F("[boot ")); Serial.print(millis()); Serial.print(F("ms] ")); Serial.println(step);
     if (!_tftReady) return;
-    constexpr int STATUS_Y = 74;
-    constexpr int STATUS_H = 12;
+    constexpr int STATUS_Y = 90;   // 2× font: below startup content
+    constexpr int STATUS_H = 18;   // text size 2 = 16px + 2px margin
     tft.fillRect(0, STATUS_Y, tft.width(), STATUS_H, COLOR_BG);
     tft.setCursor(0, STATUS_Y);
-    tft.setTextSize(1);
+    tft.setTextSize(2);
     tft.setTextColor(COLOR_BODY, COLOR_BG);
     tft.print("> ");
     tft.print(step);
@@ -119,19 +142,19 @@ void bootStatus(const char* step) {
 
 void startupScreen(const String& versionDate) {
     tft.fillScreen(COLOR_BG);
-    tft.setTextSize(2);
+    tft.setTextSize(4);    // 2× — title is 32px high
     tft.setTextColor(COLOR_TX, COLOR_BG);
     tft.setCursor(0, 0);
     tft.println("LoRa APRS");
-    tft.setTextSize(1);
+    tft.setTextSize(2);    // 2× — body is 16px high
     tft.setTextColor(COLOR_BODY, COLOR_BG);
-    tft.setCursor(0, 24);
+    tft.setCursor(0, 36);
     tft.println("Multi-Mode v3");
-    tft.setCursor(0, 38);
+    tft.setCursor(0, 54);
     tft.println(versionDate);
-    tft.setCursor(0, 56);
+    tft.setCursor(0, 72);
     tft.println("433 MHz");
-    tft.setCursor(0, 74);
+    tft.setCursor(0, 90);
     tft.println("Starting...");
     // Settle window for peripheral inits (LoRa SX1262 timing).
     for (int i = 1; i <= 3; ++i) {
@@ -142,23 +165,104 @@ void startupScreen(const String& versionDate) {
     }
 }
 
-void displayStatus(const String& line1, const String& line2,
-                   const String& line3, const String& line4) {
-    const String lines[] = { line1, line2, line3, line4 };
-    drawScreen("LoRa APRS", lines, 4);
+void displayStatus(const String& callsign, const String& tactical,
+                   const String& line2, const String& line3,
+                   const String& line4, const String& line5,
+                   const String& line6) {
+    if (millis() < txDisplayEnd) return;
+    if (!_tftReady) return;
+    const int16_t W = tft.width();   // 240
+
+    // ── Header: Tactical (primary) / Callsign (secondary), or Callsign only ────
+    // Header is always 44px tall.
+    // With tactical: tactical text×3 (y=2..26), callsign text×2 (y=27..43).
+    // Without tactical: callsign text×4 (y=2..34).
+    // Separator: y=44.  Body: y=46+i×17, i=0..4 → last line ends y=130 < 135 ✓
+    if (!_cacheValid || callsign != _prevCall || tactical != _prevTactical) {
+        tft.fillRect(0, 0, W, 45, COLOR_BG);
+        if (tactical.length() > 0) {
+            tft.setCursor(2, 2);
+            tft.setTextSize(3);
+            tft.setTextColor(COLOR_HDR, COLOR_BG);
+            tft.print(tactical);
+            tft.setCursor(2, 27);
+            tft.setTextSize(2);
+            tft.setTextColor(COLOR_DIM, COLOR_BG);
+            tft.print(callsign);
+        } else {
+            tft.setCursor(2, 2);
+            tft.setTextSize(4);
+            tft.setTextColor(COLOR_HDR, COLOR_BG);
+            tft.print(callsign);
+        }
+        tft.drawLine(0, 44, W, 44, COLOR_HDR);
+        _prevCall     = callsign;
+        _prevTactical = tactical;
+    }
+
+    // ── Lines 2-6 (text×2, 17px spacing, starting at y=46) ─────────────────
+    // text×2 = 12px/char × 16px high; ~20 chars/line at 240px.
+    // Line 6 (i=4): y = 46 + 4×17 = 114; ends at 130 < 135 ✓
+    const String* lv[5]  = { &line2, &line3, &line4, &line5, &line6 };
+    String*       pv[5]  = { &_prevLine2, &_prevLine3, &_prevLine4,
+                              &_prevLine5, &_prevLine6 };
+    for (int i = 0; i < 5; i++) {
+        if (!_cacheValid || *lv[i] != *pv[i]) {
+            int16_t y = 46 + i * 17;
+            tft.fillRect(0, y, W, 17, COLOR_BG);
+            tft.setCursor(0, y);
+            tft.setTextSize(2);
+            tft.setTextColor(COLOR_BODY, COLOR_BG);
+            tft.print(*lv[i]);
+            *pv[i] = *lv[i];
+        }
+    }
+    _cacheValid = true;
 }
 
-void displayTxFlash() {
+void displayAPMode(const String& ssid, const String& password) {
     if (!_tftReady) return;
-    tft.fillRect(0, 0, 40, 16, COLOR_TX);
-    tft.setCursor(2, 0);
-    tft.setTextSize(2);
-    tft.setTextColor(COLOR_BG);
-    tft.print("TX");
-    delay(80);
-    // Trigger full redraw on next displayStatus call.
+    tft.fillScreen(COLOR_BG);
+    tft.setCursor(0, 2);
+    tft.setTextSize(4);    // 2×  — "AP MODE" = 7 chars × 24px = 168px, fits in 240px
+    tft.setTextColor(COLOR_HDR, COLOR_BG);
+    tft.print("AP MODE");
+    tft.drawLine(0, 36, tft.width(), 36, COLOR_HDR);
+    tft.setTextSize(2);    // 2×
+    tft.setTextColor(COLOR_BODY, COLOR_BG);
+    tft.setCursor(0, 38);  tft.println("SSID: " + ssid);
+    tft.setCursor(0, 56);  tft.println("PW: " + password);
+    tft.setCursor(0, 74);  tft.println("192.168.4.1");
+    tft.setCursor(0, 92);  tft.println("Waiting...");
     _cacheValid = false;
 }
+
+void displayTx(const String& packet) {
+    if (!_tftReady) return;
+    displayActivity();   // wake display if sleeping; reset idle timer
+    txDisplayEnd = millis() + 2000;
+    _cacheValid  = false;
+    const int16_t W = tft.width();
+    tft.fillScreen(COLOR_BG);
+    tft.setCursor(0, 2);
+    tft.setTextSize(4);    // 2×  — "<< TX >>" = 9 chars × 24px = 216px, fits in 240px
+    tft.setTextColor(COLOR_TX, COLOR_BG);
+    tft.print("<< TX >>");
+    tft.drawLine(0, 44, W, 44, COLOR_TX);   // separator matches status display (y=44)
+    // Body: text×2 (12px/char, 20 chars/line), 17px row height.
+    // 5 rows fit: y=46,63,80,97,114 — last ends y=130 < 135 ✓
+    tft.setTextSize(2);
+    tft.setTextColor(COLOR_BODY, COLOR_BG);
+    const int COLS = 20, ROWS = 5;
+    for (int i = 0; i < ROWS; i++) {
+        int start = i * COLS;
+        if (start >= (int)packet.length()) break;
+        tft.setCursor(0, 46 + i * 17);
+        tft.print(packet.substring(start, start + COLS));
+    }
+}
+
+void displayTxFlash() {}   // superseded by displayTx(); kept for build compat
 
 #else  // !HAS_TFT_ST7789 — SSD1306 / SH1106 OLED or TFT_eSPI path
 
@@ -251,6 +355,7 @@ void displaySetup() {
             display.setTextColor(SH110X_WHITE);
             display.setContrast(screenBrightness);
         #endif
+        display.setTextWrap(false);   // clip overlong lines instead of wrapping
         display.setTextSize(1);
         display.setCursor(0, 0);
         display.display();
@@ -301,16 +406,17 @@ void startupScreen(const String& versionDate) {
             display.drawLine(0, 16, 128, 16, SH110X_WHITE);
             display.drawLine(0, 17, 128, 17, SH110X_WHITE);
         #endif
+        // title: text×2 (9 chars × 12px = 108px fits; text×3 = 162px > 128px)
         display.setTextSize(2);
         display.setCursor(0, 0);
-        display.println("LoRa APRS");
-        display.setTextSize(1);
+        display.print("LoRa APRS");
+        display.drawLine(0, 17, 128, 17, 1);
+        // body: text×2 (2× larger than before; 128px / 12px = 10 chars max)
+        display.setTextSize(2);
         display.setCursor(0, 20);
-        display.println("Multi-Mode v3");
-        display.setCursor(0, 30);
-        display.println(versionDate);
-        display.setCursor(0, 40);
-        display.println("433 MHz");
+        display.print("Multi-Mode v3");   // clips after ~10 chars — expected
+        display.setCursor(0, 38);
+        display.print(versionDate);
         #ifdef ssd1306
             display.ssd1306_command(SSD1306_SETCONTRAST);
             display.ssd1306_command(screenBrightness);
@@ -322,21 +428,77 @@ void startupScreen(const String& versionDate) {
     delay(1500);
 }
 
-void displayStatus(const String& line1, const String& line2,
-                   const String& line3, const String& line4) {
+void displayStatus(const String& callsign, const String& tactical,
+                   const String& line2, const String& line3,
+                   const String& line4, const String& line5,
+                   const String& line6) {
+    if (millis() < txDisplayEnd) return;
     #ifdef HAS_TFT
         #ifdef HELTEC_WIRELESS_TRACKER
             sprite.fillSprite(TFT_BLACK);
-            sprite.fillRect(0, 0, 160, 19, TFT_RED);
+            sprite.fillRect(0, 0, 160, 19, TFT_YELLOW);
             sprite.setTextFont(0);
             sprite.setTextSize(bigSizeFont);
-            sprite.setTextColor(TFT_WHITE, TFT_RED);
-            sprite.drawString(line1, 3, 3);
+            sprite.setTextColor(TFT_BLACK, TFT_YELLOW);
+            String hdr = callsign;
+            if (tactical.length() > 0) hdr += " " + tactical;
+            sprite.drawString(hdr, 3, 3);
             sprite.setTextSize(smallSizeFont);
             sprite.setTextColor(TFT_WHITE, TFT_BLACK);
             sprite.drawString(line2, 3, 22);
             sprite.drawString(line3, 3, 34);
             sprite.drawString(line4, 3, 46);
+            sprite.drawString(line5, 3, 58);
+            sprite.pushSprite(0, 0);
+        #endif
+    #else
+        // OLED 128×64 layout:
+        //  y=0-15  : Callsign text×2 (16px high) — up to 10 chars at 12px/char
+        //  y=16    : separator
+        //  y=18    : line 2 — role + battery   (text×2, 16px, ends y=34)
+        //  y=36    : line 6 — Last: callsign   (text×2, 16px, ends y=52 < 64 ✓)
+        display.clearDisplay();
+        #ifdef ssd1306
+            display.setTextColor(WHITE);
+        #else
+            display.setTextColor(SH110X_WHITE);
+        #endif
+        // Callsign at text×2 — full 128px width now that symbol is removed
+        display.setTextSize(2);
+        display.setCursor(0, 0);
+        String cs = callsign;
+        while (cs.length() > 0 && (int)(cs.length() * 12) > 128) cs.remove(cs.length()-1);
+        display.print(cs);
+        // Separator
+        display.drawLine(0, 16, 128, 16, 1);
+        // Lines 2 & 6 at text×2 (12px/char, 16px high; clips at edge if >~10 chars)
+        display.setTextSize(2);
+        display.setCursor(0, 18);  display.print(line2);
+        display.setCursor(0, 36);  display.print(line6);
+        #ifdef ssd1306
+            display.ssd1306_command(SSD1306_SETCONTRAST);
+            display.ssd1306_command(screenBrightness);
+        #else
+            display.setContrast(screenBrightness);
+        #endif
+        display.display();
+    #endif
+}
+
+void displayAPMode(const String& ssid, const String& password) {
+    #ifdef HAS_TFT
+        #ifdef HELTEC_WIRELESS_TRACKER
+            sprite.fillSprite(TFT_BLACK);
+            sprite.fillRect(0, 0, 160, 19, TFT_YELLOW);
+            sprite.setTextFont(0);
+            sprite.setTextSize(bigSizeFont);
+            sprite.setTextColor(TFT_BLACK, TFT_YELLOW);
+            sprite.drawString("** AP Mode **", 3, 3);
+            sprite.setTextSize(smallSizeFont);
+            sprite.setTextColor(TFT_WHITE, TFT_BLACK);
+            sprite.drawString("SSID: " + ssid,    3, 22);
+            sprite.drawString("PW:   " + password, 3, 34);
+            sprite.drawString("192.168.4.1",       3, 46);
             sprite.pushSprite(0, 0);
         #endif
     #else
@@ -350,16 +512,17 @@ void displayStatus(const String& line1, const String& line2,
             display.drawLine(0, 16, 128, 16, SH110X_WHITE);
             display.drawLine(0, 17, 128, 17, SH110X_WHITE);
         #endif
-        display.setTextSize(2);
+        // text×3: "AP Mode" = 7 chars × 18px = 126px — just fits in 128px
+        display.setTextSize(3);
         display.setCursor(0, 0);
-        display.println(line1);
-        display.setTextSize(1);
-        display.setCursor(0, 20);
-        display.println(line2);
-        display.setCursor(0, 30);
-        display.println(line3);
-        display.setCursor(0, 40);
-        display.println(line4);
+        display.print("AP Mode");
+        display.drawLine(0, 25, 128, 25, 1);
+        // text×2 body: 12px/char, 16px high; 2 lines fit in remaining 64-26=38px
+        display.setTextSize(2);
+        display.setCursor(0, 27);
+        display.print(ssid);
+        display.setCursor(0, 44);
+        display.print("PW: " + password);
         #ifdef ssd1306
             display.ssd1306_command(SSD1306_SETCONTRAST);
             display.ssd1306_command(screenBrightness);
@@ -370,20 +533,48 @@ void displayStatus(const String& line1, const String& line2,
     #endif
 }
 
-void displayTxFlash() {
-    // Brief TX indication. For OLED: temporarily show "TX" in header area.
+void displayTxFlash() {}   // superseded by displayTx(); kept for build compat
+
+void displayTx(const String& packet) {
+    displayActivity();   // wake display if sleeping; reset idle timer
+    txDisplayEnd = millis() + 2000;
     #ifdef HAS_TFT
-        // nothing — TFT boards use displayStatus refresh instead
+        #ifdef HELTEC_WIRELESS_TRACKER
+            sprite.fillSprite(TFT_BLACK);
+            sprite.fillRect(0, 0, 160, 19, TFT_GREEN);
+            sprite.setTextFont(0);
+            sprite.setTextSize(bigSizeFont);
+            sprite.setTextColor(TFT_BLACK, TFT_GREEN);
+            sprite.drawString("<< TX >>", 3, 3);
+            sprite.setTextSize(smallSizeFont);
+            sprite.setTextColor(TFT_WHITE, TFT_BLACK);
+            sprite.drawString(packet.substring(0, 26), 3, 22);
+            if (packet.length() > 26)
+                sprite.drawString(packet.substring(26, 52), 3, 34);
+            sprite.pushSprite(0, 0);
+        #endif
     #else
+        // OLED at 2× fonts: text×2 header (9×12=108px fits), text×2 body (10 chars max)
         display.clearDisplay();
         #ifdef ssd1306
             display.setTextColor(WHITE);
         #else
             display.setTextColor(SH110X_WHITE);
         #endif
-        display.setTextSize(2);
+        display.setTextSize(2);    // "<< TX >>" = 9 chars × 12px = 108px, fits in 128px
         display.setCursor(0, 0);
-        display.println(">>> TX <<<");
+        display.print("<< TX >>");
+        display.drawLine(0, 17, 128, 17, 1);
+        // Body: text×1 (6px/char, 8px high, 21 chars/line), 10px row spacing.
+        // 4 rows fit: y=19,29,39,49 — last ends y=57 < 64 ✓
+        display.setTextSize(1);
+        const int COLS = 21, ROWS = 4;
+        for (int i = 0; i < ROWS; i++) {
+            int start = i * COLS;
+            if (start >= (int)packet.length()) break;
+            display.setCursor(0, 19 + i * 10);
+            display.print(packet.substring(start, start + COLS));
+        }
         #ifdef ssd1306
             display.ssd1306_command(SSD1306_SETCONTRAST);
             display.ssd1306_command(screenBrightness);
@@ -391,7 +582,6 @@ void displayTxFlash() {
             display.setContrast(screenBrightness);
         #endif
         display.display();
-        delay(100);
     #endif
 }
 
