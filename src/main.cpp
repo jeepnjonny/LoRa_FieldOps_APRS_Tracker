@@ -42,8 +42,8 @@
 #endif
 
 
-String versionDate   = "2026-06-02";
-String versionNumber = "3.0.0";
+String versionDate   = "2026-06-06";
+String versionNumber = "3.0.0"; //not used
 
 Configuration Config;
 
