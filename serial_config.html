@@ -130,6 +130,7 @@
 <header id="app-header" class="bg-body-secondary border-bottom shadow-sm">
   <div class="d-flex align-items-center gap-2 px-3 py-2 flex-wrap">
     <span class="fw-semibold me-1" style="font-size:0.95rem">LoRa Tracker Serial Config</span>
+    <span id="fw-version" class="badge bg-secondary ms-1" style="font-size:0.7rem; display:none"></span>
     <span class="status-dot" id="status-dot"></span>
     <span id="status-text" class="text-muted" style="font-size:0.8rem; min-width:160px">Disconnected</span>
 
@@ -514,6 +515,7 @@ function _cleanup() {
   connected  = false;
   serialMode = 'kiss';
   bannerBuf  = '';
+  document.getElementById('fw-version').style.display = 'none';
   try { reader && reader.cancel(); }  catch {}
   try { writer && writer.close(); }   catch {}
   try { port   && port.close(); }     catch {}
@@ -591,6 +593,15 @@ async function switchToMode(target) {
 //  10. Read config via export
 // ─────────────────────────────────────────────
 async function readConfig() {
+  // Query firmware version date (parseable response: version.date=YYYY-MM-DD)
+  const vResp = await sendCmd('version');
+  const vMatch = vResp.match(/version\.date=(\S+)/);
+  if (vMatch) {
+    const el = document.getElementById('fw-version');
+    el.textContent = 'fw ' + vMatch[1];
+    el.style.display = '';
+  }
+
   logInfo('Reading config via export…');
   startExportCapture((err, parsed) => {
     if (err) { logErr('Config load failed: ' + err.message); return; }

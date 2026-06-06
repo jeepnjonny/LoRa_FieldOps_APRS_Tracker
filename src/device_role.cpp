@@ -96,33 +96,47 @@ namespace DeviceRoleUtils {
     void initializeTracker() {
         Serial.println("INFO: Tracker mode: GPS + smart beaconing enabled, messaging active");
         bootStatus("Tracker");
+        #ifdef HAS_WIFI
+        initializeWiFiSTA();
+        #endif
     }
 
     void initializeDigipeater() {
         Serial.println("INFO: Digipeater mode: RF relaying enabled, beaconing disabled");
         bootStatus("Digipeater");
+        #ifdef HAS_WIFI
+        initializeWiFiSTA();
+        #endif
     }
 
     #ifdef HAS_WIFI
+    void initializeWiFiSTA() {
+        if (!Config.wifiSTA.enabled || Config.wifiSTA.ssid.length() == 0) return;
+
+        WIFI_Utils::connectSTA();
+
+        if (WIFI_Utils::isSTAConnected()) {
+            TCP_KISS_Utils::setup();
+            #ifdef HAS_WEB_UI
+            WEB_Utils::setup();
+            logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role",
+                       "Web config: http://%s", WiFi.localIP().toString().c_str());
+            #endif
+        }
+    }
+
     void initializeIGate() {
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role", "iGate mode: APRS-IS relay enabled");
 
-        // Connect WiFi STA
         if (Config.wifiSTA.enabled && Config.wifiSTA.ssid.length() > 0) {
             WIFI_Utils::connectSTA();
         } else {
             logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "Role", "WiFi STA not configured — iGate will not reach APRS-IS");
         }
 
-        // Connect APRS-IS
         if (WIFI_Utils::isSTAConnected()) {
             APRS_IS_Utils::connect();
-        }
-
-        if (WIFI_Utils::isSTAConnected()) {
-            // TCP KISS server
             TCP_KISS_Utils::setup();
-            // Web config UI accessible at the STA IP address
             #ifdef HAS_WEB_UI
             WEB_Utils::setup();
             logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role",
@@ -161,7 +175,9 @@ namespace DeviceRoleUtils {
 
         switch (Config.deviceRole) {
             case ROLE_TRACKER:
-                // Tracker tasks handled in main loop
+                #ifdef HAS_WIFI
+                if (Config.wifiSTA.enabled) handleWiFiTasks();
+                #endif
                 break;
             case ROLE_IGATE:
                 #ifdef HAS_WIFI
@@ -169,7 +185,9 @@ namespace DeviceRoleUtils {
                 #endif
                 break;
             case ROLE_DIGIPEATER:
-                // Digipeater packet processing handled in main loop via MSG_Utils
+                #ifdef HAS_WIFI
+                if (Config.wifiSTA.enabled) handleWiFiTasks();
+                #endif
                 break;
             default:
                 break;
@@ -177,17 +195,19 @@ namespace DeviceRoleUtils {
     }
 
     #ifdef HAS_WIFI
+    void handleWiFiTasks() {
+        if (!WIFI_Utils::isSTAConnected()) {
+            WIFI_Utils::connectSTA();
+        }
+        TCP_KISS_Utils::loop();
+    }
+
     void handleIGateTasks() {
-        // Maintain WiFi + APRS-IS connection
         if (!WIFI_Utils::isSTAConnected() && Config.wifiSTA.enabled) {
             WIFI_Utils::connectSTA();
         }
         APRS_IS_Utils::checkConnection();
-
-        // Poll inbound APRS-IS packets (bi-directional downlink)
         APRS_IS_Utils::listenAPRSIS();
-
-        // Service TCP KISS clients
         TCP_KISS_Utils::loop();
     }
     #endif

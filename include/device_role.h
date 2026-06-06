@@ -13,7 +13,9 @@ namespace DeviceRoleUtils {
     void initializeDigipeater();
 
     #ifdef HAS_WIFI
+    void initializeWiFiSTA();
     void initializeIGate();
+    void handleWiFiTasks();
     void handleIGateTasks();
     #endif
 

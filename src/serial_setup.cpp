@@ -20,6 +20,7 @@
 #include "lora_utils.h"
 #include "battery_utils.h"
 #include "gps_utils.h"
+#include "version.h"
 
 extern Configuration        Config;
 extern logging::Logger      logger;
@@ -872,6 +873,9 @@ namespace SERIAL_Setup {
         else if (cmd == "wifista")  cmdWifiSta(tk, n, line);
         else if (cmd == "aprsiss")  cmdAprsIS(tk, n, line);
         else if (cmd == "tcpkiss")  cmdTcpKiss(tk, n);
+        else if (cmd == "version") {
+            Serial.println("version.date=" FIRMWARE_VERSION_DATE);
+        }
         else err("unknown command: " + cmd + "  (try 'help')");
     }
 

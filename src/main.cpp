@@ -25,6 +25,7 @@
 #include "device_role.h"
 #include "kiss_utils.h"
 #include "digi_utils.h"
+#include "version.h"
 #ifdef HAS_WIFI
 #include <WiFi.h>
 #include "wifi_utils.h"
@@ -42,7 +43,7 @@
 #endif
 
 
-String versionDate   = "2026-06-06";
+String versionDate   = FIRMWARE_VERSION_DATE;
 String versionNumber = "3.0.0"; //not used
 
 Configuration Config;

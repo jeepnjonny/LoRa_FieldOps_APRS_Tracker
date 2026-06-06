@@ -150,18 +150,16 @@ void startupScreen(const String& versionDate) {
     tft.setTextSize(2);    // 2× — body is 16px high
     tft.setTextColor(COLOR_BODY, COLOR_BG);
     tft.setCursor(0, 36);
-    tft.println("Multi-Mode v3");
-    tft.setCursor(0, 54);
     tft.println(versionDate);
     tft.setCursor(0, 72);
     tft.println("433 MHz");
     tft.setCursor(0, 90);
     tft.println("Starting...");
     // Settle window for peripheral inits (LoRa SX1262 timing).
-    for (int i = 1; i <= 3; ++i) {
+    for (int i = 1; i <= 5; ++i) {
         delay(500);
         char step[16];
-        snprintf(step, sizeof(step), "settle %d/3", i);
+        snprintf(step, sizeof(step), "settle %d/5", i);
         bootStatus(step);
     }
 }
@@ -264,6 +262,11 @@ void displayTx(const String& packet) {
 }
 
 void displayTxFlash() {}   // superseded by displayTx(); kept for build compat
+
+void displaySetInvert(bool invert) {
+    // ST7789 has no hardware invert command — just keep Config in sync.
+    Config.display.invertDisplay = invert;
+}
 
 #else  // !HAS_TFT_ST7789 — SSD1306 / SH1106 OLED or TFT_eSPI path
 
@@ -432,12 +435,10 @@ void startupScreen(const String& versionDate) {
         // body: text×2 (2× larger than before; 128px / 12px = 10 chars max)
         display.setTextSize(2);
         display.setCursor(0, 20);
-        display.print("Multi-Mode v3");   // clips after ~10 chars — expected
-        display.setCursor(0, 38);
         display.print(versionDate);
         display.display();
     #endif
-    delay(1500);
+    delay(2500);
 }
 
 void displayStatus(const String& callsign, const String& tactical,

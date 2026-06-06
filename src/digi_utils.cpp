@@ -20,13 +20,13 @@ extern logging::Logger  logger;
 
 namespace DIGI_Utils {
 
-    // Remove asterisk markers from a path string
+    // Strip * only from WIDE alias tokens produced by other firmware that marks
+    // the alias itself (e.g. "WIDE2-1*") rather than inserting a callsign.
+    // Callsign asterisks (e.g. "FILL*") must be preserved for correct path tracing.
     static String cleanPathAsterisks(String path) {
-        static const char* terms[] = { ",WIDE1*", ",WIDE2*", "*" };
-        for (auto term : terms) {
-            int idx = path.indexOf(term);
-            if (idx != -1) path.remove(idx, strlen(term));
-        }
+        path.replace("WIDE1-1*", "WIDE1-1");
+        path.replace("WIDE2-1*", "WIDE2-1");
+        path.replace("WIDE2-2*", "WIDE2-2");
         return path;
     }
 
@@ -41,7 +41,7 @@ namespace DIGI_Utils {
         String tempPath = path;
 
         if (tempPath.indexOf("WIDE1-1") != -1 && mode >= DIGI_WIDE1) {
-            if (tempPath.indexOf("*") != -1) return "";    // already digipeated
+            if (tempPath.indexOf("WIDE1-1*") != -1) return "";  // alias already used
             tempPath.replace("WIDE1-1", myCall + "*");
         } else if (tempPath.indexOf("WIDE2-") != -1 && mode == DIGI_WIDE1_WIDE2) {
             tempPath = cleanPathAsterisks(path);
