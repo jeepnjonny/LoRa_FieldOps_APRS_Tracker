@@ -50,9 +50,6 @@ extern bool                 sendUpdate;
 
 extern uint32_t             lastTxTime;
 extern uint32_t             txInterval;
-extern double               lastTxLat;
-extern double               lastTxLng;
-extern double               lastTxDistance;
 extern uint32_t             lastTx;
 extern bool                 disableGPS;
 extern SmartBeaconValues    currentSmartBeaconValues;
@@ -211,32 +208,18 @@ namespace GPS_Utils {
     }
 
     void calculateDistanceTraveled() {
-        currentHeading  = gps.course.deg();
-        lastTxDistance  = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), lastTxLat, lastTxLng);
+        currentHeading = gps.course.deg();
         if (lastTx >= txInterval) {
-            // Beacon if moved far enough OR if stationary (speed < 1 km/h).
-            // GPS speed uses Doppler and reads 0 reliably when stopped, so this
-            // cleanly handles the parked-tracker case without a separate timer.
-            // minTxDist still suppresses jitter-triggered updates while moving.
-            int speed = (int)gps.speed.kmph();
-            if (speed < 1 || lastTxDistance > currentSmartBeaconValues.minTxDist) {
-                sendUpdate = true;
-            }
+            sendUpdate = true;
         }
     }
 
     void calculateHeadingDelta(int speed) {
-        uint8_t TurnMinAngle;
         double headingDelta = abs(previousHeading - currentHeading);
-        if (lastTx > (uint32_t)(currentSmartBeaconValues.minDeltaBeacon * 1000)) {
-            if (speed == 0) {
-                TurnMinAngle = currentSmartBeaconValues.turnMinDeg + (currentSmartBeaconValues.turnSlope/(speed + 1));
-            } else {
-                TurnMinAngle = currentSmartBeaconValues.turnMinDeg + (currentSmartBeaconValues.turnSlope/speed);
-            }
-            // Heading trigger still requires minTxDist — GPS course is unreliable
-            // at low speeds, so we don't want stationary jitter firing heading beacons.
-            if (speed > 1 && headingDelta > TurnMinAngle && lastTxDistance > currentSmartBeaconValues.minTxDist) {
+        if (headingDelta > 180.0) headingDelta = 360.0 - headingDelta;
+        if (speed > 1 && lastTx > 10000) {
+            int TurnMinAngle = currentSmartBeaconValues.turnMinDeg + (currentSmartBeaconValues.turnSlope / speed);
+            if (headingDelta > TurnMinAngle) {
                 sendUpdate = true;
             }
         }

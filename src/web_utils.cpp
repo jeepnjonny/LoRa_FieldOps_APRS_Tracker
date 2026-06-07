@@ -17,11 +17,26 @@
  */
 
 #include <ArduinoJson.h>
+#include <esp_timer.h>
 #include "configuration.h"
 #include "web_utils.h"
 #include "display.h"
+#include "battery_utils.h"
+#include "aprs_is_utils.h"
 
 extern Configuration               Config;
+
+// Schedule a soft reset from an IDF timer task — safe to call from any context
+// including AsyncWebServer request handlers (async_tcp task).
+static void scheduleRestart(uint32_t delayMs) {
+    esp_timer_handle_t t;
+    esp_timer_create_args_t args = {};
+    args.callback         = [](void*){ esp_restart(); };
+    args.dispatch_method  = ESP_TIMER_TASK;
+    args.name             = "web_rst";
+    esp_timer_create(&args, &t);
+    esp_timer_start_once(t, (uint64_t)delayMs * 1000);
+}
 
 extern const char web_index_html[] asm("_binary_data_embed_index_html_gz_start");
 extern const char web_index_html_end[] asm("_binary_data_embed_index_html_gz_end");
@@ -60,6 +75,20 @@ namespace WEB_Utils {
 
     void handleStatus(AsyncWebServerRequest *request) {
         request->send(200, "text/plain", "OK");
+    }
+
+    void handleAprsIsStatus(AsyncWebServerRequest *request) {
+        bool up = APRS_IS_Utils::isConnected();
+        request->send(200, "application/json", up ? "{\"connected\":true}" : "{\"connected\":false}");
+    }
+
+    void handleBattery(AsyncWebServerRequest *request) {
+        BATTERY_Utils::obtainBatteryInfo();
+        String voltStr = BATTERY_Utils::getBatteryInfoVoltage();
+        String pctStr  = BATTERY_Utils::getPercentVoltageBattery(voltStr.toFloat());
+        pctStr.trim();
+        String json = "{\"voltage\":\"" + voltStr + "\",\"percent\":\"" + pctStr + "\"}";
+        request->send(200, "application/json", json);
     }
 
     void handleHome(AsyncWebServerRequest *request) {
@@ -209,8 +238,6 @@ namespace WEB_Utils {
         Config.customSmartBeacon.slowSpeed      = getParamIntSafe("customSmartBeacon.slowSpeed",     Config.customSmartBeacon.slowSpeed);
         Config.customSmartBeacon.fastRate       = getParamIntSafe("customSmartBeacon.fastRate",      Config.customSmartBeacon.fastRate);
         Config.customSmartBeacon.fastSpeed      = getParamIntSafe("customSmartBeacon.fastSpeed",     Config.customSmartBeacon.fastSpeed);
-        Config.customSmartBeacon.minTxDist      = getParamIntSafe("customSmartBeacon.minTxDist",     Config.customSmartBeacon.minTxDist);
-        Config.customSmartBeacon.minDeltaBeacon = getParamIntSafe("customSmartBeacon.minDeltaBeacon",Config.customSmartBeacon.minDeltaBeacon);
         Config.customSmartBeacon.turnMinDeg     = getParamIntSafe("customSmartBeacon.turnMinDeg",    Config.customSmartBeacon.turnMinDeg);
         Config.customSmartBeacon.turnSlope      = getParamIntSafe("customSmartBeacon.turnSlope",     Config.customSmartBeacon.turnSlope);
 
@@ -231,9 +258,8 @@ namespace WEB_Utils {
             response->addHeader("Location", "/?success=1");
             request->send(response);
 
-            displayToggle(false);
-            delay(500);
-            ESP.restart();
+            Serial.println("Restarting...");
+            scheduleRestart(1000);
         } else {
             Serial.println("Error saving configuration!");
             String errorPage = "<!DOCTYPE html><html><head><title>Error</title></head><body>";
@@ -254,8 +280,8 @@ namespace WEB_Utils {
 
             request->send(200, "text/plain", "Beacon will be sent in a while");
         } else if (type == "reboot") {
-            displayToggle(false);
-            ESP.restart();
+            request->send(200, "text/plain", "Rebooting...");
+            scheduleRestart(1000);
         } else {
             request->send(404, "text/plain", "Not Found");
         }
@@ -290,6 +316,8 @@ namespace WEB_Utils {
     void setup() {
         server.on("/", HTTP_GET, handleHome);
         server.on("/status", HTTP_GET, handleStatus);
+        server.on("/battery.json", HTTP_GET, handleBattery);
+        server.on("/aprs-is-status.json", HTTP_GET, handleAprsIsStatus);
         //server.on("/received-packets.json", HTTP_GET, handleReceivedPackets);
         server.on("/configuration.json", HTTP_GET, handleReadConfiguration);
         server.on("/configuration.json", HTTP_POST, handleWriteConfiguration);

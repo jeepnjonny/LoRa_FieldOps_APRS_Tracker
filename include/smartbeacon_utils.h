@@ -27,8 +27,6 @@ struct SmartBeaconValues {
     int     slowSpeed;
     int     fastRate;
     int     fastSpeed;
-    int     minTxDist;
-    int     minDeltaBeacon;
     int     turnMinDeg;
     int     turnSlope;
 };

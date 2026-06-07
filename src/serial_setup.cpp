@@ -21,6 +21,9 @@
 #include "battery_utils.h"
 #include "gps_utils.h"
 #include "version.h"
+#ifdef HAS_WIFI
+#include "aprs_is_utils.h"
+#endif
 
 extern Configuration        Config;
 extern logging::Logger      logger;
@@ -140,7 +143,6 @@ namespace SERIAL_Setup {
         Serial.println(F("  smartcustom show"));
         Serial.println(F("  smartcustom slowrate <sec>     slowspeed <km/h>"));
         Serial.println(F("  smartcustom fastrate <sec>     fastspeed <km/h>"));
-        Serial.println(F("  smartcustom mintxdist <m>      mindelta <sec>"));
         Serial.println(F("  smartcustom turnmindeg <deg>   turnslope <n>"));
         Serial.println(F("\n-- lora --"));
         Serial.println(F("  lora freq <Hz>             sf <7..12>           bw <Hz>"));
@@ -160,7 +162,7 @@ namespace SERIAL_Setup {
         Serial.println(F("  fixed latitude <dd.dddddd>  longitude <dd.dddddd>  elevation <m>"));
         Serial.println(F("  wifista on|off              ssid <text>            password <text>"));
         Serial.println(F("  aprsiss server <host>       port <n>               passcode <n>"));
-        Serial.println(F("  aprsiss filter <filter>     (e.g. r/47.6/-122.3/50)"));
+        Serial.println(F("  aprsiss filter <filter>     aprsiss status"));
         Serial.println(F("  tcpkiss port <n>             (TCP KISS port, default 8001; server auto-starts with WiFi STA)"));
         Serial.println(F("\n-- other --"));
         Serial.println(F("  digi <off|wide1|wide1+wide2>  (works with any role)"));
@@ -223,14 +225,12 @@ namespace SERIAL_Setup {
     static void printSmartCustom() {
         SmartBeaconValues& s = Config.customSmartBeacon;
         Serial.println("  customSmartBeacon (used when beacon smartset = 3):");
-        kv("    slowRate      ", s.slowRate);
-        kv("    slowSpeed     ", s.slowSpeed);
-        kv("    fastRate      ", s.fastRate);
-        kv("    fastSpeed     ", s.fastSpeed);
-        kv("    minTxDist     ", s.minTxDist);
-        kv("    minDeltaBeacon", s.minDeltaBeacon);
-        kv("    turnMinDeg    ", s.turnMinDeg);
-        kv("    turnSlope     ", s.turnSlope);
+        kv("    slowRate  ", s.slowRate);
+        kv("    slowSpeed ", s.slowSpeed);
+        kv("    fastRate  ", s.fastRate);
+        kv("    fastSpeed ", s.fastSpeed);
+        kv("    turnMinDeg", s.turnMinDeg);
+        kv("    turnSlope ", s.turnSlope);
         bool usedByBeacon0 = (Config.beacons.size() > 0 && Config.beacons[0].smartBeaconSetting == SMARTBEACON_CUSTOM_INDEX);
         Serial.println(String("    used by beacon[0]: ") + (usedByBeacon0 ? "yes" : "no"));
     }
@@ -431,7 +431,7 @@ namespace SERIAL_Setup {
     }
 
     static void cmdSmartcustom(String* tk, int n, const String& /*line*/) {
-        if (n < 2) { err("smartcustom <show|slowrate|slowspeed|fastrate|fastspeed|mintxdist|mindelta|turnmindeg|turnslope> <n>"); return; }
+        if (n < 2) { err("smartcustom <show|slowrate|slowspeed|fastrate|fastspeed|turnmindeg|turnslope> <n>"); return; }
         const String& sub = tk[1];
 
         if (sub == "show") { printSmartCustom(); return; }
@@ -444,8 +444,6 @@ namespace SERIAL_Setup {
         else if (sub == "slowspeed")  { s.slowSpeed      = v; }
         else if (sub == "fastrate")   { s.fastRate       = v; }
         else if (sub == "fastspeed")  { s.fastSpeed      = v; }
-        else if (sub == "mintxdist")  { s.minTxDist      = v; }
-        else if (sub == "mindelta")   { s.minDeltaBeacon = v; }
         else if (sub == "turnmindeg") { s.turnMinDeg     = v; }
         else if (sub == "turnslope")  { s.turnSlope      = v; }
         else { err("unknown smartcustom subcommand: " + sub); return; }
@@ -747,12 +745,19 @@ namespace SERIAL_Setup {
     }
 
     static void cmdAprsIS(String* tk, int n, const String& line) {
-        if (n < 2) { err("aprsiss <server|port|passcode|filter>"); return; }
+        if (n < 2) { err("aprsiss <server|port|passcode|filter|status>"); return; }
         const String& sub = tk[1];
         if      (sub == "server")   { if (n < 3) { err("aprsiss server <hostname>"); return; } Config.aprsIS.server  = tk[2];                ok("aprsIS.server = "  + Config.aprsIS.server); }
         else if (sub == "port")     { if (n < 3) { err("aprsiss port <port>");    return; } Config.aprsIS.port    = tk[2].toInt();          ok("aprsIS.port = "    + String(Config.aprsIS.port)); }
         else if (sub == "passcode") { if (n < 3) { err("aprsiss passcode <code>"); return; } Config.aprsIS.passcode = tk[2];                ok("aprsIS.passcode updated"); }
         else if (sub == "filter")   { if (n < 3) { err("aprsiss filter <filter>"); return; } Config.aprsIS.filter  = restOfLine(line, 2);   ok("aprsIS.filter = "  + Config.aprsIS.filter); }
+        else if (sub == "status")   {
+            #ifdef HAS_WIFI
+                Serial.println(APRS_IS_Utils::isConnected() ? "aprsIS.connected=true" : "aprsIS.connected=false");
+            #else
+                Serial.println("aprsIS.connected=false");
+            #endif
+        }
         else err("unknown aprsiss subcommand: " + sub);
     }
 

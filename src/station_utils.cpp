@@ -35,9 +35,6 @@ extern bool             gpsIsActive;
 extern bool smartBeaconActive;
 extern double currentHeading;
 extern double previousHeading;
-double      lastTxLat           = 0.0;
-double      lastTxLng           = 0.0;
-double      lastTxDistance      = 0.0;
 uint32_t    lastTx              = 0;
 uint32_t    lastTxTime          = 0;
 
@@ -208,10 +205,7 @@ namespace STATION_Utils {
         #endif
 
         if (smartBeaconActive) {
-            lastTxLat       = beaconLat;
-            lastTxLng       = beaconLng;
             previousHeading = currentHeading;
-            lastTxDistance  = 0.0;
         }
         lastTxTime      = millis();
         sendUpdate      = false;

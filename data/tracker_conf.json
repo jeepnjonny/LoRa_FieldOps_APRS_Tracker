@@ -35,6 +35,6 @@
   "fixedPosition": { "latitude": 0.0, "longitude": 0.0, "elevation": 0.0 },
   "deviceRole": 0,
   "gpsSource": 0,
-  "customSmartBeacon": { "slowRate": 120, "slowSpeed": 5, "fastRate": 60, "fastSpeed": 40, "minTxDist": 100, "minDeltaBeacon": 12, "turnMinDeg": 12, "turnSlope": 60 },
+  "customSmartBeacon": { "slowRate": 120, "slowSpeed": 5, "fastRate": 60, "fastSpeed": 40, "turnMinDeg": 12, "turnSlope": 60 },
   "pttTrigger": { "active": false, "io_pin": -1, "preDelay": 0, "postDelay": 0, "reverse": false }
 }

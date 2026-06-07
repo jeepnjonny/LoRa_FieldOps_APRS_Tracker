@@ -74,8 +74,11 @@ static uint32_t btnPressTime = 0;
 static bool     btnActive    = false;
 #endif
 
-extern bool disableGPS;
-extern bool gpsIsActive;
+extern bool     disableGPS;
+extern bool     gpsIsActive;
+extern uint32_t lastTx;
+extern uint32_t lastTxTime;
+extern bool     smartBeaconActive;
 
 // currentBeacon pointer — always points to beacons[0] in this single-profile build.
 // Shared with smartbeacon_utils.cpp, gps_utils.cpp, station_utils.cpp.
@@ -268,6 +271,7 @@ void loop() {
 
     // ── Beaconing ────────────────────────────────────────────────────────
     uint32_t now = millis();
+    lastTx = now - lastTxTime;
     if (gpsIsActive) {
         GPS_Utils::getData();
         bool locUpdated  = gps.location.isUpdated();
@@ -278,8 +282,10 @@ void loop() {
         SMARTBEACON_Utils::checkSettings(Config.beacons[0].smartBeaconSetting);
         SMARTBEACON_Utils::checkState();
 
-        if (locUpdated) GPS_Utils::calculateDistanceTraveled();
-        GPS_Utils::calculateHeadingDelta(speed);
+        if (smartBeaconActive) {
+            if (locUpdated) GPS_Utils::calculateDistanceTraveled();
+            GPS_Utils::calculateHeadingDelta(speed);
+        }
         SMARTBEACON_Utils::checkFixedBeaconTime();
 
         if (sendUpdate && locUpdated) {

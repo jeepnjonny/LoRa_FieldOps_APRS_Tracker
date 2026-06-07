@@ -45,6 +45,8 @@ function updateVisibility() {
     if (fixedEl)   fixedEl.style.display   = (gpsSrc === 1) ? '' : 'none';
     if (aprsIsEl)  aprsIsEl.style.display  = (role === 1)   ? '' : 'none';  // iGate only
     if (tcpKissEl) tcpKissEl.style.display = (role !== 0)   ? '' : 'none';  // not for Tracker
+
+    if (role === 1) startAprsIsPolling(); else stopAprsIsPolling();
 }
 
 document.getElementById('deviceRole')?.addEventListener('change', updateVisibility);
@@ -100,14 +102,12 @@ function loadSettings(s) {
     setVal('lora.0.power',          lora.power           ?? 20);
 
     const csb = s.customSmartBeacon ?? {};
-    setVal('customSmartBeacon.slowRate',       csb.slowRate       ?? 120);
-    setVal('customSmartBeacon.slowSpeed',      csb.slowSpeed      ?? 5);
-    setVal('customSmartBeacon.fastRate',       csb.fastRate       ?? 60);
-    setVal('customSmartBeacon.fastSpeed',      csb.fastSpeed      ?? 40);
-    setVal('customSmartBeacon.minTxDist',      csb.minTxDist      ?? 100);
-    setVal('customSmartBeacon.minDeltaBeacon', csb.minDeltaBeacon ?? 12);
-    setVal('customSmartBeacon.turnMinDeg',     csb.turnMinDeg     ?? 12);
-    setVal('customSmartBeacon.turnSlope',      csb.turnSlope      ?? 60);
+    setVal('customSmartBeacon.slowRate',   csb.slowRate   ?? 120);
+    setVal('customSmartBeacon.slowSpeed',  csb.slowSpeed  ?? 5);
+    setVal('customSmartBeacon.fastRate',   csb.fastRate   ?? 60);
+    setVal('customSmartBeacon.fastSpeed',  csb.fastSpeed  ?? 40);
+    setVal('customSmartBeacon.turnMinDeg', csb.turnMinDeg ?? 12);
+    setVal('customSmartBeacon.turnSlope',  csb.turnSlope  ?? 60);
 
     const disp = s.display ?? {};
     setVal('display.ecoMode',      disp.ecoMode      ?? false);
@@ -242,6 +242,67 @@ document.getElementById('reboot')?.addEventListener('click', async function(e) {
     } catch (_) {
         showToast('Reboot command sent.');
     }
+});
+
+// ── APRS-IS connection status ─────────────────────────────────────────────────
+
+let _aprsIsPoller = null;
+
+async function checkAprsIsStatus() {
+    const led = document.getElementById('aprsIsLed');
+    const txt = document.getElementById('aprsIsStatusText');
+    if (!led) return;
+    try {
+        const res = await fetch('/aprs-is-status.json');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        if (d.connected) {
+            led.style.background = '#28a745';
+            txt.textContent = 'connected';
+            txt.className = 'text-success small';
+        } else {
+            led.style.background = '#dc3545';
+            txt.textContent = 'disconnected';
+            txt.className = 'text-danger small';
+        }
+    } catch (_) {
+        led.style.background = '#6c757d';
+        txt.textContent = '—';
+        txt.className = 'text-muted small';
+    }
+}
+
+function startAprsIsPolling() {
+    if (_aprsIsPoller) return;
+    checkAprsIsStatus();
+    _aprsIsPoller = setInterval(checkAprsIsStatus, 5000);
+}
+
+function stopAprsIsPolling() {
+    if (_aprsIsPoller) { clearInterval(_aprsIsPoller); _aprsIsPoller = null; }
+    const led = document.getElementById('aprsIsLed');
+    const txt = document.getElementById('aprsIsStatusText');
+    if (led) led.style.background = '#6c757d';
+    if (txt) { txt.textContent = '—'; txt.className = 'text-muted small'; }
+}
+
+document.getElementById('aprsIsCheckBtn')?.addEventListener('click', checkAprsIsStatus);
+
+// ── Live battery read ─────────────────────────────────────────────────────────
+
+document.getElementById('batteryReadBtn')?.addEventListener('click', async function() {
+    const display = document.getElementById('batteryDisplay');
+    this.disabled = true;
+    display.textContent = 'reading…';
+    try {
+        const res = await fetch('/battery.json');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        display.textContent = `B: ${d.voltage}V  ${d.percent}%`;
+    } catch (_) {
+        display.textContent = 'B: error';
+    }
+    this.disabled = false;
 });
 
 // ── Init ──────────────────────────────────────────────────────────────────────

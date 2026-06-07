@@ -34,10 +34,10 @@ uint32_t            wxRequestTime               = 0;
 
 
 SmartBeaconValues   smartBeaconSettings[SMARTBEACON_PROFILE_COUNT] = {
-    {120,  3, 60, 15,  50, 20, 12, 60},     // Runner settings  = SLOW
-    {120,  5, 60, 40, 100, 12, 12, 60},     // Bike settings    = MEDIUM
-    {120, 10, 10, 110, 100, 10, 10, 80},     // Car settings     = FAST
-    {120,  5, 60, 40, 100, 12, 12, 60}      // Custom slot      = filled from Config.customSmartBeacon at load
+    {120,  3, 60,  15, 12, 60},     // Runner settings  = SLOW
+    {120,  5, 60,  40, 12, 60},     // Bike settings    = MEDIUM
+    {120, 10, 10, 110, 10, 80},     // Car settings     = FAST
+    {120,  5, 60,  40, 12, 60}      // Custom slot      = filled from Config.customSmartBeacon at load
 };
 
 static const char* SMARTBEACON_PROFILE_LABELS[SMARTBEACON_PROFILE_COUNT] = {
@@ -78,7 +78,15 @@ namespace SMARTBEACON_Utils {
             } else if (speed > currentSmartBeaconValues.fastSpeed) {
                 txInterval = currentSmartBeaconValues.fastRate * 1000;
             } else {
-                txInterval = min(currentSmartBeaconValues.slowRate, currentSmartBeaconValues.fastSpeed * currentSmartBeaconValues.fastRate / speed) * 1000;
+                int range = currentSmartBeaconValues.fastSpeed - currentSmartBeaconValues.slowSpeed;
+                if (range <= 0) {
+                    txInterval = (uint32_t)currentSmartBeaconValues.fastRate * 1000;
+                } else {
+                    txInterval = (uint32_t)(currentSmartBeaconValues.fastRate
+                        + (currentSmartBeaconValues.slowRate - currentSmartBeaconValues.fastRate)
+                        * (currentSmartBeaconValues.fastSpeed - speed)
+                        / range) * 1000;
+                }
             }
         }
     }

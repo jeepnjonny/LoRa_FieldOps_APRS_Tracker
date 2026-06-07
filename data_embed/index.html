@@ -57,7 +57,7 @@
                                         <div class="row g-3">
                                             <div class="col-md-4">
                                                 <label class="form-label" for="beacons.0.callsign">Callsign</label>
-                                                <input type="text" class="form-control" id="beacons.0.callsign" name="beacons.0.callsign" maxlength="10" />
+                                                <input type="text" class="form-control" id="beacons.0.callsign" name="beacons.0.callsign" maxlength="9" />
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label" for="beacons.0.tacticalCallsign">Tactical callsign <span class="text-muted fw-normal small">(optional — sends as object)</span></label>
@@ -72,8 +72,18 @@
                                                 <input type="text" class="form-control" id="beacons.0.overlay" name="beacons.0.overlay" maxlength="1" />
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label" for="beacons.0.micE">Mic-E <span class="text-muted fw-normal small">(leave blank for standard)</span></label>
-                                                <input type="text" class="form-control" id="beacons.0.micE" name="beacons.0.micE" maxlength="3" />
+                                                <label class="form-label" for="beacons.0.micE">Mic-E encoding</label>
+                                                <select class="form-select" id="beacons.0.micE" name="beacons.0.micE">
+                                                    <option value="">— off —</option>
+                                                    <option value="0">0 · Off / Custom</option>
+                                                    <option value="1">1 · En Route</option>
+                                                    <option value="2">2 · In Service</option>
+                                                    <option value="3">3 · Returning</option>
+                                                    <option value="4">4 · Committed</option>
+                                                    <option value="5">5 · Special</option>
+                                                    <option value="6">6 · Priority</option>
+                                                    <option value="7">7 · Emergency!</option>
+                                                </select>
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label" for="beacons.0.comment">Comment <span class="text-muted fw-normal small">(≤43 chars)</span></label>
@@ -143,14 +153,6 @@
                                             <div class="col-md-3">
                                                 <label class="form-label" for="customSmartBeacon.fastSpeed">Fast speed (km/h)</label>
                                                 <input type="number" class="form-control" id="customSmartBeacon.fastSpeed" name="customSmartBeacon.fastSpeed" />
-                                            </div>
-                                            <div class="col-md-3">
-                                                <label class="form-label" for="customSmartBeacon.minTxDist">Min TX distance (m)</label>
-                                                <input type="number" class="form-control" id="customSmartBeacon.minTxDist" name="customSmartBeacon.minTxDist" />
-                                            </div>
-                                            <div class="col-md-3">
-                                                <label class="form-label" for="customSmartBeacon.minDeltaBeacon">Min delta beacon (s)</label>
-                                                <input type="number" class="form-control" id="customSmartBeacon.minDeltaBeacon" name="customSmartBeacon.minDeltaBeacon" />
                                             </div>
                                             <div class="col-md-3">
                                                 <label class="form-label" for="customSmartBeacon.turnMinDeg">Turn min deg</label>
@@ -292,6 +294,12 @@
                                 <div id="batterySection" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
                                     <div class="accordion-body">
                                         <div class="row g-3">
+                                            <div class="col-12">
+                                                <div class="d-flex align-items-center gap-3">
+                                                    <div id="batteryDisplay" style="font-family:Consolas,monospace;font-size:1rem;background:#000;color:#0f0;border:1px solid #444;border-radius:4px;padding:3px 10px;min-width:10rem;text-align:center">B: — V  —%</div>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="batteryReadBtn">⟳ Read</button>
+                                                </div>
+                                            </div>
                                             <div class="col-md-4">
                                                 <div class="form-check form-switch">
                                                     <input class="form-check-input" type="checkbox" id="sendAltitude" name="sendAltitude" />
@@ -451,7 +459,13 @@
 
                                             <!-- APRS-IS (shown when role = iGate) -->
                                             <div id="aprsIsFields" class="col-12" style="display:none">
-                                                <hr /><h6>APRS-IS</h6>
+                                                <hr />
+                                                <div class="d-flex align-items-center gap-2 mb-2">
+                                                    <h6 class="mb-0">APRS-IS</h6>
+                                                    <span id="aprsIsLed" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#6c757d;flex-shrink:0" title="Unknown"></span>
+                                                    <span id="aprsIsStatusText" class="text-muted small">—</span>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-xs ms-1" id="aprsIsCheckBtn">⟳</button>
+                                                </div>
                                                 <div class="row g-3">
                                                     <div class="col-md-7">
                                                         <label class="form-label">Server &amp; Port</label>
