@@ -33,15 +33,17 @@ bool                wxRequestStatus             = false;
 uint32_t            wxRequestTime               = 0;
 
 
+// {slowRate(s), slowSpeed(km/h), fastRate(s), fastSpeed(km/h), turnMinDeg, turnSlope}
 SmartBeaconValues   smartBeaconSettings[SMARTBEACON_PROFILE_COUNT] = {
-    {120,  3, 60,  15, 12, 60},     // Runner settings  = SLOW
-    {120,  5, 60,  40, 12, 60},     // Bike settings    = MEDIUM
-    {120, 10, 10, 110, 10, 80},     // Car settings     = FAST
-    {120,  5, 60,  40, 12, 60}      // Custom slot      = filled from Config.customSmartBeacon at load
+    { 90,  5, 45,  18, 12,  60},    // Runner  — walk→sprint (5–18 km/h), ~200 m/beacon at pace
+    {120,  5, 45,  50, 12,  60},    // Bike    — casual→e-bike (5–50 km/h), ~600 m/beacon
+    { 90, 10, 36,  97, 10,  80},    // Car     — city→highway, ~0.6 mi/beacon at 60 mph
+    { 60, 30, 10,  97,  5, 150},    // Jetboat — marina→WOT; clips to 10 s above 60 mph
+    {120,  5, 60,  40, 12,  60}     // Custom  — filled from Config.customSmartBeacon at load
 };
 
 static const char* SMARTBEACON_PROFILE_LABELS[SMARTBEACON_PROFILE_COUNT] = {
-    "Runner", "Bike", "Car", "Custom"
+    "Runner", "Bike", "Car", "Jetboat", "Custom"
 };
 
 

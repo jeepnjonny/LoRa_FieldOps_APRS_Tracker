@@ -31,8 +31,8 @@ struct SmartBeaconValues {
     int     turnSlope;
 };
 
-static constexpr byte SMARTBEACON_PROFILE_COUNT = 4;
-static constexpr byte SMARTBEACON_CUSTOM_INDEX  = 3;
+static constexpr byte SMARTBEACON_PROFILE_COUNT = 5;
+static constexpr byte SMARTBEACON_CUSTOM_INDEX  = 4;
 
 namespace SMARTBEACON_Utils {
 

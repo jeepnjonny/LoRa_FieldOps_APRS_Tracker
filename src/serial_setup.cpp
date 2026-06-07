@@ -138,8 +138,8 @@ namespace SERIAL_Setup {
         Serial.println(F("  beacon comment <text...>   status <text...>     label <text...>"));
         Serial.println(F("  beacon tactical <text...>  (<=9 chars; empty = position report)"));
         Serial.println(F("  beacon smart on|off"));
-        Serial.println(F("  beacon smartset <0..3>     (0=Runner 1=Bike 2=Car 3=Custom)"));
-        Serial.println(F("\n-- smartcustom (used when beacon smartset = 3) --"));
+        Serial.println(F("  beacon smartset <0..4>     (0=Runner 1=Bike 2=Car 3=Jetboat 4=Custom)"));
+        Serial.println(F("\n-- smartcustom (used when beacon smartset = 4) --"));
         Serial.println(F("  smartcustom show"));
         Serial.println(F("  smartcustom slowrate <sec>     slowspeed <km/h>"));
         Serial.println(F("  smartcustom fastrate <sec>     fastspeed <km/h>"));
@@ -224,7 +224,7 @@ namespace SERIAL_Setup {
 
     static void printSmartCustom() {
         SmartBeaconValues& s = Config.customSmartBeacon;
-        Serial.println("  customSmartBeacon (used when beacon smartset = 3):");
+        Serial.println("  customSmartBeacon (used when beacon smartset = 4):");
         kv("    slowRate  ", s.slowRate);
         kv("    slowSpeed ", s.slowSpeed);
         kv("    fastRate  ", s.fastRate);
@@ -385,10 +385,10 @@ namespace SERIAL_Setup {
             if (n < 3) { err("smart on|off"); return; }
             applyBool(tk[2], b.smartBeaconActive, "smart");
         } else if (sub == "smartset") {
-            if (n < 3) { err("smartset <0..3>  (0=Runner 1=Bike 2=Car 3=Custom)"); return; }
+            if (n < 3) { err("smartset <0..4>  (0=Runner 1=Bike 2=Car 3=Jetboat 4=Custom)"); return; }
             int v = tk[2].toInt();
             if (v < 0 || v >= SMARTBEACON_PROFILE_COUNT) {
-                err("smartset must be 0..3  (0=Runner 1=Bike 2=Car 3=Custom)");
+                err("smartset must be 0..4  (0=Runner 1=Bike 2=Car 3=Jetboat 4=Custom)");
                 return;
             }
             b.smartBeaconSetting = (byte)v;
