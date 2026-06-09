@@ -1315,7 +1315,7 @@ function renderConfig() {
       row.appendChild(lbl); row.appendChild(inp);
       body.appendChild(row);
     }
-    body.appendChild(mkBool('Active High', ptt.reverse, v => sendCmd(`ptt reverse ${boolStr(v)}`)));
+    body.appendChild(mkBool('Active Low (invert polarity)', ptt.reverse, v => sendCmd(`ptt reverse ${boolStr(v)}`)));
     // Pre-delay + Post-delay on same row, equal widths
     {
       const row = document.createElement('div'); row.className = 'field-row';
@@ -1356,7 +1356,7 @@ function renderConfig() {
       v => sendCmd(`role gps ${['internal','fixed','none'][+v] || 'internal'}`)));
 
     body.appendChild(mkGroupTitle('Digipeat Mode  (independent of role — any role can also digipeat)'));
-    body.appendChild(mkSelect('Digi mode', config.digiMode ?? 0,
+    body.appendChild(mkSelect('Digi mode', other.digiMode ?? 0,
       [{ v:0, l:'Off — no digipeating' },
        { v:1, l:'WIDE1 only — fill-in (responds to WIDE1-1, stamps callsign)' },
        { v:2, l:'WIDE1+WIDE2 — infrastructure (WIDE1-1 and WIDE2-n)' }],
