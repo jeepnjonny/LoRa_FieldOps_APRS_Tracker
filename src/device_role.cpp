@@ -23,12 +23,12 @@
 #include "logger.h"
 #include "display.h"
 #ifdef HAS_WIFI
+#include <WiFi.h>
 #include "aprs_is_utils.h"
 #include "tcp_kiss_utils.h"
 #include "wifi_utils.h"
 #ifdef HAS_WEB_UI
 #include "web_utils.h"
-#include <WiFi.h>
 #endif
 #endif
 
@@ -38,6 +38,9 @@ extern logging::Logger logger;
 namespace DeviceRoleUtils {
 
     static bool roleInitialized = false;
+    #ifdef HAS_WIFI
+    static bool networkServicesStarted = false;
+    #endif
 
     const char* getRoleString(DeviceRole role) {
         switch (role) {
@@ -110,18 +113,28 @@ namespace DeviceRoleUtils {
     }
 
     #ifdef HAS_WIFI
+    // Starts TCP KISS and the web UI exactly once — idempotent via the
+    // networkServicesStarted flag.  Called both at boot (if WiFi connects
+    // immediately) and at runtime (when tickWiFiReconnect fires for the
+    // first time after a delayed or resumed connection).
+    static void startNetworkServices() {
+        if (networkServicesStarted) return;
+        networkServicesStarted = true;
+        TCP_KISS_Utils::setup();
+        #ifdef HAS_WEB_UI
+        WEB_Utils::setup();
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role",
+                   "Web config: http://%s", WiFi.localIP().toString().c_str());
+        #endif
+    }
+
     void initializeWiFiSTA() {
         if (!Config.wifiSTA.enabled || Config.wifiSTA.ssid.length() == 0) return;
 
         WIFI_Utils::connectSTA();
 
         if (WIFI_Utils::isSTAConnected()) {
-            TCP_KISS_Utils::setup();
-            #ifdef HAS_WEB_UI
-            WEB_Utils::setup();
-            logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role",
-                       "Web config: http://%s", WiFi.localIP().toString().c_str());
-            #endif
+            startNetworkServices();
         }
     }
 
@@ -136,12 +149,7 @@ namespace DeviceRoleUtils {
 
         if (WIFI_Utils::isSTAConnected()) {
             APRS_IS_Utils::connect();
-            TCP_KISS_Utils::setup();
-            #ifdef HAS_WEB_UI
-            WEB_Utils::setup();
-            logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Role",
-                       "Web config: http://%s", WiFi.localIP().toString().c_str());
-            #endif
+            startNetworkServices();
         }
 
         bootStatus("iGate");
@@ -195,19 +203,67 @@ namespace DeviceRoleUtils {
     }
 
     #ifdef HAS_WIFI
-    void handleWiFiTasks() {
-        if (!WIFI_Utils::isSTAConnected()) {
-            WIFI_Utils::connectSTA();
+    // Non-blocking WiFi reconnect state machine shared by Tracker and Digipeater roles.
+    // Calls beginSTAConnect() once per WIFI_RETRY_INTERVAL_MS; polls isSTAConnected()
+    // each loop iteration; gives up after WIFI_CONNECT_TIMEOUT_MS and waits for the
+    // next interval.  Never blocks the main loop.
+    static bool     wifiConnecting          = false;
+    static uint32_t wifiConnectTimestamp    = 0;   // start of current attempt OR end of last attempt
+
+    static constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS  = 15000UL;  // per-attempt window
+    static constexpr uint32_t WIFI_RETRY_INTERVAL_MS   = 30000UL;  // cooldown between attempts
+
+    // Returns true on the loop iteration that WiFi first becomes connected.
+    static bool tickWiFiReconnect() {
+        if (WIFI_Utils::isSTAConnected()) {
+            if (wifiConnecting) {
+                wifiConnecting = false;
+                logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "WiFi", "Reconnected — IP: %s",
+                           WiFi.localIP().toString().c_str());
+                return true;   // caller can react to the transition
+            }
+            return false;
         }
+
+        // Not connected.
+        if (wifiConnecting) {
+            if (millis() - wifiConnectTimestamp > WIFI_CONNECT_TIMEOUT_MS) {
+                wifiConnecting = false;
+                WiFi.disconnect(true);
+                wifiConnectTimestamp = millis();   // start cooldown
+                logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "WiFi",
+                           "Connect attempt timed out, retrying in %us", WIFI_RETRY_INTERVAL_MS / 1000);
+            }
+        } else {
+            if (millis() - wifiConnectTimestamp >= WIFI_RETRY_INTERVAL_MS) {
+                WIFI_Utils::beginSTAConnect();
+                wifiConnectTimestamp = millis();
+                wifiConnecting = true;
+            }
+        }
+        return false;
+    }
+
+    void handleWiFiTasks() {
+        bool justConnected = tickWiFiReconnect();
+        if (justConnected) startNetworkServices();
         TCP_KISS_Utils::loop();
     }
 
     void handleIGateTasks() {
-        if (!WIFI_Utils::isSTAConnected() && Config.wifiSTA.enabled) {
-            WIFI_Utils::connectSTA();
+        bool justConnected = tickWiFiReconnect();
+
+        if (WIFI_Utils::isSTAConnected()) {
+            if (justConnected) {
+                // Reset APRS-IS cooldown immediately on WiFi (re)connect so we don't
+                // wait up to 30 s more before attempting the TCP connection.
+                APRS_IS_Utils::resetConnectTimer();
+                startNetworkServices();
+            }
+            APRS_IS_Utils::checkConnection();
+            APRS_IS_Utils::listenAPRSIS();
         }
-        APRS_IS_Utils::checkConnection();
-        APRS_IS_Utils::listenAPRSIS();
+        // TCP KISS server binds to 0.0.0.0 and is managed independently of WiFi state.
         TCP_KISS_Utils::loop();
     }
     #endif

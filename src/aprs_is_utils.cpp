@@ -15,6 +15,7 @@
 #include "lora_utils.h"
 #include "display.h"
 #include "logger.h"
+#include "log_buffer.h"
 
 extern Configuration    Config;
 extern logging::Logger  logger;
@@ -105,14 +106,17 @@ namespace APRS_IS_Utils {
 
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "APRS-IS", "Connecting to %s:%d ...", server.c_str(), port);
 
+        // 3 attempts, 3 s TCP SYN timeout each, 1 s between tries.
+        // Worst-case blocking: ~13 s (vs. ~25 s with the old 5-attempt / platform-default path).
         uint8_t attempts = 0;
-        while (!aprsIsClient.connect(server.c_str(), port) && attempts < 5) {
+        while (!aprsIsClient.connect(server.c_str(), port, 3000) && attempts < 3) {
             delay(1000);
             attempts++;
         }
 
         if (!aprsIsClient.connected()) {
             logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "APRS-IS", "Connection failed after %d attempts", attempts);
+            LogBuffer::pushf(LogBuffer::TYPE_NET, "APRS-IS connect failed after %d attempts", attempts);
             return;
         }
 
@@ -145,6 +149,8 @@ namespace APRS_IS_Utils {
 
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "APRS-IS", "Connected. Passcode %s",
                    passcodeValid ? "VALID" : "INVALID (Rx only)");
+        LogBuffer::pushf(LogBuffer::TYPE_NET, "APRS-IS connected (%s)",
+                         passcodeValid ? "validated" : "rx-only");
         _needsBeacon = true;   // signal caller to send an immediate self-beacon
     }
 
@@ -153,6 +159,10 @@ namespace APRS_IS_Utils {
         if (millis() - lastConnectTry < RECONNECT_MS) return;
         lastConnectTry = millis();
         connect();
+    }
+
+    void resetConnectTimer() {
+        lastConnectTry = 0;
     }
 
     // Returns true (and clears the flag) the first time called after each successful
@@ -212,6 +222,7 @@ namespace APRS_IS_Utils {
 
         upload(uploadLine);
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "APRS-IS", "Uploaded: %s", uploadLine.c_str());
+        LogBuffer::pushf(LogBuffer::TYPE_IGT, "IS: %s", uploadLine.c_str());
     }
 
     void listenAPRSIS() {

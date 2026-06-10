@@ -504,6 +504,32 @@
                                 </div>
                             </div>
 
+                            <!-- Live Events (SSE log stream) -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingLiveEvents">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLiveEvents" aria-expanded="false" aria-controls="collapseLiveEvents">
+                                        Live Events
+                                    </button>
+                                </h2>
+                                <div id="collapseLiveEvents" class="accordion-collapse collapse" aria-labelledby="headingLiveEvents" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" id="liveEventsConnectBtn">Connect</button>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary" id="liveEventsClearBtn">Clear</button>
+                                            <div class="form-check form-switch mb-0 ms-1">
+                                                <input class="form-check-input" type="checkbox" id="liveEventsAutoScroll" checked />
+                                                <label class="form-check-label small" for="liveEventsAutoScroll">Auto-scroll</label>
+                                            </div>
+                                            <span id="liveEventsStatus" class="text-muted small ms-auto">Disconnected</span>
+                                        </div>
+                                        <div id="liveEventsLog"
+                                             style="height:220px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;font-family:monospace;font-size:0.78rem;padding:8px;border-radius:4px;border:1px solid var(--bs-border-color)">
+                                        </div>
+                                        <p class="form-text mt-2 mb-0">Streams RX/TX/Digi/iGate events from the device in real time. Events are buffered on-device (last 50). Disconnect when done to free resources.</p>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div><!-- end accordion -->
                     </div>
                 </main>

@@ -305,6 +305,92 @@ document.getElementById('batteryReadBtn')?.addEventListener('click', async funct
     this.disabled = false;
 });
 
+// ── Live Events (SSE) ─────────────────────────────────────────────────────────
+
+const LOG_TYPE = {
+    'R': { label: 'RX',   color: '#58d6f5' },   // cyan
+    'T': { label: 'TX',   color: '#f5c542' },   // yellow
+    'D': { label: 'DIG',  color: '#5cf582' },   // green
+    'I': { label: 'IGT',  color: '#7fa7f5' },   // blue
+    'N': { label: 'NET',  color: '#c0c0c0' },   // silver
+    'i': { label: 'INFO', color: '#a0a0a0' },   // grey
+};
+
+let _evtSrc = null;
+
+function liveEscapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function appendLogEntry(jsonData) {
+    const log = document.getElementById('liveEventsLog');
+    if (!log) return;
+    let entry;
+    try { entry = JSON.parse(jsonData); } catch (_) { return; }
+
+    const t   = LOG_TYPE[entry.t] || { label: '?', color: '#a0a0a0' };
+    const ms  = entry.ms || 0;
+    const sec = Math.floor(ms / 1000);
+    const hh  = String(Math.floor(sec / 3600) % 24).padStart(2, '0');
+    const mm  = String(Math.floor(sec / 60) % 60).padStart(2, '0');
+    const ss  = String(sec % 60).padStart(2, '0');
+
+    const line = document.createElement('div');
+    line.innerHTML =
+        `<span style="color:#666">${hh}:${mm}:${ss}</span> ` +
+        `<span style="color:${t.color};font-weight:bold">[${t.label}]</span> ` +
+        `<span>${liveEscapeHtml(entry.msg || '')}</span>`;
+    log.appendChild(line);
+
+    // Trim to last 200 lines to prevent unbounded DOM growth
+    while (log.children.length > 200) log.removeChild(log.firstChild);
+
+    const autoScroll = document.getElementById('liveEventsAutoScroll');
+    if (autoScroll?.checked) log.scrollTop = log.scrollHeight;
+}
+
+function liveEventsConnect() {
+    if (_evtSrc) return;
+    const btn    = document.getElementById('liveEventsConnectBtn');
+    const status = document.getElementById('liveEventsStatus');
+    if (!('EventSource' in window)) {
+        if (status) { status.textContent = 'EventSource not supported'; status.className = 'text-warning small ms-auto'; }
+        return;
+    }
+    _evtSrc = new EventSource('/events');
+    _evtSrc.addEventListener('log', e => appendLogEntry(e.data));
+    _evtSrc.onopen = () => {
+        if (status) { status.textContent = 'Connected'; status.className = 'text-success small ms-auto'; }
+        if (btn)    { btn.textContent = 'Disconnect'; btn.className = 'btn btn-sm btn-outline-danger'; }
+    };
+    _evtSrc.onerror = () => {
+        if (status) { status.textContent = 'Connection error'; status.className = 'text-danger small ms-auto'; }
+    };
+}
+
+function liveEventsDisconnect() {
+    if (!_evtSrc) return;
+    _evtSrc.close();
+    _evtSrc = null;
+    const btn    = document.getElementById('liveEventsConnectBtn');
+    const status = document.getElementById('liveEventsStatus');
+    if (btn)    { btn.textContent = 'Connect'; btn.className = 'btn btn-sm btn-outline-primary'; }
+    if (status) { status.textContent = 'Disconnected'; status.className = 'text-muted small ms-auto'; }
+}
+
+document.getElementById('liveEventsConnectBtn')?.addEventListener('click', function () {
+    if (_evtSrc) liveEventsDisconnect(); else liveEventsConnect();
+});
+
+document.getElementById('liveEventsClearBtn')?.addEventListener('click', function () {
+    const log = document.getElementById('liveEventsLog');
+    if (log) log.innerHTML = '';
+});
+
+// Cleanly close the SSE connection when the browser tab is closed/navigated away,
+// so the device's AsyncEventSource slot is freed promptly.
+window.addEventListener('beforeunload', liveEventsDisconnect);
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', fetchSettings);

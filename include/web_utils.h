@@ -37,6 +37,7 @@ namespace WEB_Utils {
     void handleBootstrapScript(AsyncWebServerRequest *request);
 
     void setup();
+    void loop();   // call from main loop — flushes new log entries to SSE clients
 
 }
 

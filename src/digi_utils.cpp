@@ -14,6 +14,7 @@
 #include "lora_utils.h"
 #include "station_utils.h"
 #include "logger.h"
+#include "log_buffer.h"
 
 extern Configuration    Config;
 extern logging::Logger  logger;
@@ -105,6 +106,7 @@ namespace DIGI_Utils {
         if (repeated.length() == 0) return;
 
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "Digi", "Repeating: %s", repeated.c_str());
+        LogBuffer::pushf(LogBuffer::TYPE_DIG, "Relay: %s", repeated.c_str());
         delay(200);  // brief gap to avoid TX collision
         LoRa_Utils::sendNewPacket(repeated);
     }

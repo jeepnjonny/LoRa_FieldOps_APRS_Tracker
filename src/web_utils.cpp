@@ -23,6 +23,7 @@
 #include "display.h"
 #include "battery_utils.h"
 #include "aprs_is_utils.h"
+#include "log_buffer.h"
 
 extern Configuration               Config;
 
@@ -65,7 +66,12 @@ extern const size_t favicon_data_len = favicon_data_end - favicon_data;
 
 namespace WEB_Utils {
 
-    AsyncWebServer server(80);
+    AsyncWebServer  server(80);
+    AsyncEventSource events("/events");
+
+    // Tracks the highest LogBuffer sequence number already sent to SSE clients.
+    static uint32_t sseLastSeq  = 0;
+    static uint32_t lastSseTick = 0;
 
     void handleNotFound(AsyncWebServerRequest *request) {
         AsyncWebServerResponse *response = request->beginResponse(404, "text/plain", "Not found");
@@ -328,9 +334,38 @@ namespace WEB_Utils {
         server.on("/bootstrap.js", HTTP_GET, handleBootstrapScript);
         server.on("/favicon.png", HTTP_GET, handleFavicon);
 
+        // SSE endpoint: replay buffered events to new client, then push live events.
+        events.onConnect([](AsyncEventSourceClient *client) {
+            char jsonBuf[256];
+            LogBuffer::forEach([&](const LogBuffer::Entry& e) {
+                LogBuffer::toJson(e, jsonBuf, sizeof(jsonBuf));
+                client->send(jsonBuf, "log", e.ms);
+            });
+        });
+        server.addHandler(&events);
+
         server.onNotFound(handleNotFound);
 
         server.begin();
+    }
+
+    // Call from main loop — sends new ring-buffer entries to connected SSE clients.
+    // Returns immediately (< 1 µs) if no clients are connected or nothing is new.
+    void loop() {
+        if (events.count() == 0) return;
+
+        uint32_t now = millis();
+        if (now - lastSseTick < 100) return;   // throttle to 10 Hz max
+        lastSseTick = now;
+
+        char jsonBuf[256];
+        LogBuffer::forEach([&](const LogBuffer::Entry& e) {
+            if (e.seq > sseLastSeq) {
+                LogBuffer::toJson(e, jsonBuf, sizeof(jsonBuf));
+                events.send(jsonBuf, "log", e.ms);
+                sseLastSeq = e.seq;
+            }
+        });
     }
 
 }

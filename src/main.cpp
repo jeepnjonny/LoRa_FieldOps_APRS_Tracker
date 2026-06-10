@@ -266,6 +266,12 @@ void loop() {
     // ── Role periodic tasks (APRS-IS keepalive, TCP KISS clients) ───────
     DeviceRoleUtils::handleRoleSpecificTasks();
 
+    // ── Web UI SSE log flush ─────────────────────────────────────────────
+    // Non-blocking: returns immediately when no clients are connected.
+    #ifdef HAS_WEB_UI
+    WEB_Utils::loop();
+    #endif
+
     // ── Output packet buffer (digi re-TX, iGate downlink) ───────────────
     STATION_Utils::processOutputPacketBuffer();
 

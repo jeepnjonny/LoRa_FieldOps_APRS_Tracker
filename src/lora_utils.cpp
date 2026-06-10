@@ -26,6 +26,7 @@
 #include "lora_utils.h"
 #include "display.h"
 #include "led_utils.h"
+#include "log_buffer.h"
 
 extern logging::Logger  logger;
 extern Configuration    Config;
@@ -220,6 +221,7 @@ namespace LoRa_Utils {
             return;
         }
 
+        LogBuffer::pushf(LogBuffer::TYPE_TX, "%s", newPacket.c_str());
         displayTx(newPacket);
 
         if (Config.ptt.active) {
@@ -284,6 +286,8 @@ namespace LoRa_Utils {
                 if (state == RADIOLIB_ERR_NONE) {
                     if(packet.length() != 0) {
                         logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "LoRa Rx","---> %s", packet.substring(3).c_str());
+                        LogBuffer::pushf(LogBuffer::TYPE_RX, "%s  [RSSI:%d SNR:%.0f]",
+                            packet.substring(3).c_str(), (int)radio.getRSSI(), (double)radio.getSNR());
                         receivedLoraPacket.text       = packet;
                         receivedLoraPacket.rssi       = radio.getRSSI();
                         receivedLoraPacket.snr        = radio.getSNR();
