@@ -21,6 +21,7 @@
 #include "configuration.h"
 #include "web_utils.h"
 #include "display.h"
+#include "serial_setup.h"
 
 extern      Configuration       Config;
 extern      logging::Logger     logger;
@@ -43,8 +44,20 @@ namespace WIFI_Utils {
 
     void beginSTAConnect() {
         if (Config.wifiSTA.ssid.length() == 0) return;
-        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "WiFi", "Connecting to '%s' (async)...", Config.wifiSTA.ssid.c_str());
+
+        // Build DHCP hostname: CALLSIGN-last4ofMAC  (e.g. "KJ7NYE-7-A1B2")
+        // Must be set after WIFI_STA mode but before WiFi.begin().
+        uint8_t mac[6];
         WiFi.mode(WIFI_STA);
+        WiFi.macAddress(mac);
+        char hostname[36];
+        snprintf(hostname, sizeof(hostname), "%s-%02X%02X",
+                 Config.beacons[0].callsign.c_str(), mac[4], mac[5]);
+        WiFi.setHostname(hostname);
+
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "WiFi",
+                   "Connecting to '%s' as '%s' (async)...",
+                   Config.wifiSTA.ssid.c_str(), hostname);
         WiFi.begin(Config.wifiSTA.ssid.c_str(), Config.wifiSTA.password.c_str());
     }
 
@@ -89,7 +102,12 @@ namespace WIFI_Utils {
         uint32_t noClientsTime = 0;
 
         while (true) {
-            delay(500);
+            // Poll serial CLI so USB config works while AP mode is blocking.
+            uint32_t tick = millis();
+            while (millis() - tick < 500) {
+                SERIAL_Setup::loop();
+                delay(10);
+            }
             displayAPMode(AP_SSID, Config.wifiAP.password);
 
             if (WiFi.softAPgetStationNum() > 0) {

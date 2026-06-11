@@ -231,8 +231,8 @@ bool Configuration::readFile() {
             LoraType loraType;
 
             loraType.frequency          = LoraTypesArray[j]["frequency"] | 433775000;
-            loraType.spreadingFactor    = LoraTypesArray[j]["spreadingFactor"] | 12;
-            loraType.signalBandwidth    = LoraTypesArray[j]["signalBandwidth"] | 125000;
+            loraType.spreadingFactor    = LoraTypesArray[j]["spreadingFactor"] | 8;
+            loraType.signalBandwidth    = LoraTypesArray[j]["signalBandwidth"] | 62500;
             loraType.codingRate4        = LoraTypesArray[j]["codingRate4"] | 5;
             loraType.power              = LoraTypesArray[j]["power"] | 20;
             loraTypes.push_back(loraType);
@@ -242,7 +242,7 @@ bool Configuration::readFile() {
         if (beacons.size() > 1) beacons.resize(1);
         if (beacons.empty())    { Beacon b; b.callsign="NOCALL-7"; b.symbol=">"; b.overlay="/"; b.smartBeaconActive=true; b.smartBeaconSetting=2; beacons.push_back(b); needsRewrite=true; }
         if (loraTypes.size() > 1) loraTypes.resize(1);
-        if (loraTypes.empty())    { LoraType l; l.frequency=433775000; l.spreadingFactor=12; l.signalBandwidth=125000; l.codingRate4=5; l.power=20; loraTypes.push_back(l); needsRewrite=true; }
+        if (loraTypes.empty())    { LoraType l; l.frequency=433775000; l.spreadingFactor=8; l.signalBandwidth=62500; l.codingRate4=5; l.power=20; loraTypes.push_back(l); needsRewrite=true; }
 
         if (data["battery"]["sendVoltage"].isNull() ||
             data["battery"]["sendVoltageAlways"].isNull() ||
@@ -377,8 +377,8 @@ void Configuration::setDefaultValues() {
     // ONE LoRa type (433 MHz APRS EU default)
     LoraType loraType;
     loraType.frequency          = 433775000;
-    loraType.spreadingFactor    = 12;
-    loraType.signalBandwidth    = 125000;
+    loraType.spreadingFactor    = 8;
+    loraType.signalBandwidth    = 62500;
     loraType.codingRate4        = 5;
     loraType.power              = 20;
     loraTypes.clear();

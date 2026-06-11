@@ -139,6 +139,7 @@ void setup() {
         // (the USR button on Heltec V3 / LoRanger V1) doubles as the ESP32 BOOT pin:
         // holding it low during reset enters ROM download mode before firmware runs.
         bootStatus("WiFi AP check");
+        SERIAL_Setup::setup();          // must run before checkIfWiFiAP — AP mode blocks forever
         WIFI_Utils::checkIfWiFiAP(false);
         if (Config.deviceRole != ROLE_IGATE && !Config.wifiSTA.enabled) {
             WiFi.mode(WIFI_OFF);
@@ -167,7 +168,6 @@ void setup() {
     #endif
 
     POWER_Utils::lowerCpuFrequency();
-    SERIAL_Setup::setup();
 
     // Force the initial battery measurement before the first beacon fires.
     // monitor() checks batteryMeasurmentTime==0 and performs the reading immediately
