@@ -169,8 +169,9 @@ namespace SERIAL_Setup {
         Serial.println(F("  wifi password <text>       (AP password; AP triggers on NOCALL or USR button at boot)"));
         Serial.println(F("  beaconpath <text>"));
         Serial.println(F("  gps read                   print current GPS position (all sources)"));
-        Serial.println(F("  sendalt on|off"));
-        Serial.println(F("  nonsmartrate <sec>         commentafter <n>"));
+        Serial.println(F("  sendspeed on|off             sendalt on|off"));
+        Serial.println(F("  nonsmartrate <min>"));
+        Serial.println(F("  commentafter <n>"));
         Serial.println();
     }
 
@@ -294,6 +295,7 @@ namespace SERIAL_Setup {
             hdr("other");
             kv("commentafter       ", Config.sendCommentAfterXBeacons);
             kv("nonSmartBeaconRate ", Config.nonSmartBeaconRate);
+            kv("sendSpeedCourse     ", Config.sendSpeedCourse);
             kv("sendAltitude       ", Config.sendAltitude);
             kv("digiMode           ", Config.digiMode == DIGI_OFF ? "off" :
                                        Config.digiMode == DIGI_WIDE1 ? "wide1" : "wide1+wide2");
@@ -869,8 +871,9 @@ namespace SERIAL_Setup {
                 err("gps read");
             }
         }
+        else if (cmd == "sendspeed")                { if (n >= 2) applyBool(tk[1], Config.sendSpeedCourse, "sendSpeedCourse"); else err("sendspeed on|off"); }
         else if (cmd == "sendalt")                  { if (n >= 2) applyBool(tk[1], Config.sendAltitude, "sendAltitude"); else err("sendalt on|off"); }
-        else if (cmd == "nonsmartrate")             { if (n >= 2) { Config.nonSmartBeaconRate = tk[1].toInt(); ok("nonSmartBeaconRate = " + String(Config.nonSmartBeaconRate)); } else err("nonsmartrate <sec>"); }
+        else if (cmd == "nonsmartrate")             { if (n >= 2) { Config.nonSmartBeaconRate = tk[1].toInt(); ok("nonSmartBeaconRate = " + String(Config.nonSmartBeaconRate)); } else err("nonsmartrate <min>"); }
         else if (cmd == "commentafter")             { if (n >= 2) { Config.sendCommentAfterXBeacons = tk[1].toInt(); ok("sendCommentAfterXBeacons = " + String(Config.sendCommentAfterXBeacons)); } else err("commentafter <n>"); }
         // multi-role commands
         else if (cmd == "role")     cmdRole(tk, n, line);

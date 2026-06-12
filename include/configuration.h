@@ -162,6 +162,7 @@ public:
     String  beaconPath;     // APRS path for OWN TX (e.g. WIDE1-1). Not used by the digi relay.
     int     nonSmartBeaconRate;
     bool    sendAltitude;
+    bool    sendSpeedCourse;
 
     void setDefaultValues();
     bool writeFile();

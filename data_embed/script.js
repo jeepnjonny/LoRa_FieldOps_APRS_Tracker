@@ -136,6 +136,7 @@ function loadSettings(s) {
     setVal('beaconPath',              s.beaconPath              ?? s.path ?? oth.beaconPath  ?? 'WIDE1-1');
     setVal('nonSmartBeaconRate',      s.nonSmartBeaconRate      ?? oth.nonSmartBeaconRate  ?? 15);
     setVal('sendCommentAfterXBeacons',s.sendCommentAfterXBeacons?? oth.sendCommentAfterXBeacons ?? 10);
+    setVal('sendSpeedCourse',         s.sendSpeedCourse         ?? oth.sendSpeedCourse ?? true);
     setVal('sendAltitude',            s.sendAltitude            ?? oth.sendAltitude ?? true);
     setVal('digiMode',                s.other?.digiMode         ?? oth.digiMode ?? 0);
 

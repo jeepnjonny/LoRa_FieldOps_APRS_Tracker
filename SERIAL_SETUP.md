@@ -209,7 +209,7 @@ Four region presets are stored: `0=EU`, `1=PL`, `2=UK`, `3=US`.
 | `simplified on\|off`             | Simplified tracker mode (no menu, no buttons).                 |
 | `disablegps on\|off`             | Run as a TNC-only (no GPS).                                    |
 | `sendalt on\|off`                | Include altitude in beacons.                                   |
-| `nonsmartrate <sec>`             | Beacon interval when SmartBeacon is off.                       |
+| `nonsmartrate <min>`             | Beacon interval when SmartBeacon is off.                       |
 | `rememberstation <sec>`          | How long to remember heard stations.                           |
 | `commentafter <n>`               | Send beacon comment every Nth beacon.                          |
 

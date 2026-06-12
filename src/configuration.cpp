@@ -106,6 +106,7 @@ bool Configuration::writeFile() {
         data["other"]["beaconPath"]                 = beaconPath;
         data["other"]["nonSmartBeaconRate"]         = nonSmartBeaconRate;
         data["other"]["sendAltitude"]               = sendAltitude;
+        data["other"]["sendSpeedCourse"]            = sendSpeedCourse;
         data["other"]["digiMode"]                   = (int)digiMode;
 
         data["customSmartBeacon"]["slowRate"]       = customSmartBeacon.slowRate;
@@ -264,7 +265,8 @@ bool Configuration::readFile() {
 
         if (data["other"]["sendCommentAfterXBeacons"].isNull() ||
             data["other"]["nonSmartBeaconRate"].isNull() ||
-            data["other"]["sendAltitude"].isNull()) needsRewrite = true;
+            data["other"]["sendAltitude"].isNull() ||
+            data["other"]["sendSpeedCourse"].isNull()) needsRewrite = true;
         sendCommentAfterXBeacons        = data["other"]["sendCommentAfterXBeacons"] | 10;
         // Backward compat: accept old "path" key; new key is "beaconPath"
         if      (!data["other"]["beaconPath"].isNull()) beaconPath = data["other"]["beaconPath"].as<String>();
@@ -272,6 +274,7 @@ bool Configuration::readFile() {
         else                                          { beaconPath = "WIDE1-1"; needsRewrite = true; }
         nonSmartBeaconRate              = data["other"]["nonSmartBeaconRate"] | 15;
         sendAltitude                    = data["other"]["sendAltitude"] | true;
+        sendSpeedCourse                 = data["other"]["sendSpeedCourse"] | true;
         // Backward compat: accept old bool "digipeating"; new field is "digiMode" (int)
         if (!data["other"]["digiMode"].isNull()) {
             digiMode = (DigiMode)(data["other"]["digiMode"] | 0);
@@ -398,6 +401,7 @@ void Configuration::setDefaultValues() {
     beaconPath                      = "WIDE1-1";
     nonSmartBeaconRate              = 15;
     sendAltitude                    = true;
+    sendSpeedCourse                 = true;
     digiMode                        = DIGI_OFF;
 
     customSmartBeacon               = SmartBeaconValues{ 120, 5, 60, 40, 100, 12 };

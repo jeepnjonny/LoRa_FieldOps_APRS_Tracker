@@ -149,21 +149,39 @@ namespace STATION_Utils {
             } else {
                 snprintf(ts, sizeof(ts), "000000z");
             }
-            packet = APRSPacketLib::generateObjectPacket(
+            // When sendSpeedCourse is on, speed/course occupy the Base91 extension and altitude
+        // goes in the /A= comment below.  When sendSpeedCourse is off, fall back to the
+        // original behaviour: altitude in the extension (if sendAltitude is on).
+        bool altInExtension = Config.sendAltitude && !Config.sendSpeedCourse;
+        packet = APRSPacketLib::generateObjectPacket(
                 b.callsign, "APLRT1", path, tactical, String(ts), b.overlay,
                 APRSPacketLib::encodeGPSIntoBase91(
                     beaconLat, beaconLng, courseDeg, speedKnots,
-                    b.symbol, Config.sendAltitude, altFeet, false));
+                    b.symbol, altInExtension, altFeet, false));
         } else if (b.micE.length() > 0) {
+            // Mic-E encodes speed, course, and altitude independently — no trade-off needed.
             packet = APRSPacketLib::generateMiceGPSBeaconPacket(
                 b.micE, b.callsign, b.symbol, b.overlay, path,
                 beaconLat, beaconLng, courseDeg, speedKnots, altMeters);
         } else {
+            bool altInExtension = Config.sendAltitude && !Config.sendSpeedCourse;
             packet = APRSPacketLib::generateBase91GPSBeaconPacket(
                 b.callsign, "APLRT1", path, b.overlay,
                 APRSPacketLib::encodeGPSIntoBase91(
                     beaconLat, beaconLng, courseDeg, speedKnots,
-                    b.symbol, Config.sendAltitude, altFeet, false));
+                    b.symbol, altInExtension, altFeet, false));
+        }
+
+        // Append standard /A=XXXXXX altitude comment when speed/course is in the extension
+        // and sendAltitude is also enabled.  (Mic-E already carries altitude natively.)
+        bool appendAltComment = Config.sendAltitude && Config.sendSpeedCourse
+                                && (b.micE.length() == 0)
+                                && altFeet > -1000.0f;
+        if (appendAltComment) {
+            char altBuf[12];
+            int altFeetClamped = (altFeet > 0) ? (int)altFeet : 0;
+            snprintf(altBuf, sizeof(altBuf), "/A=%06d", altFeetClamped);
+            packet += altBuf;
         }
 
         // Battery voltage comment.

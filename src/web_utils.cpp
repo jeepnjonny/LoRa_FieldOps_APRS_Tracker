@@ -184,6 +184,7 @@ namespace WEB_Utils {
         Config.beaconPath = getParamStringSafe("beaconPath", getParamStringSafe("path", Config.beaconPath));
         Config.sendCommentAfterXBeacons         = getParamIntSafe("sendCommentAfterXBeacons", Config.sendCommentAfterXBeacons);
         Config.nonSmartBeaconRate               = getParamIntSafe("nonSmartBeaconRate", Config.nonSmartBeaconRate);
+        Config.sendSpeedCourse                  = request->hasParam("sendSpeedCourse", true);
         Config.sendAltitude                     = request->hasParam("sendAltitude", true);
         //  Display
         Config.display.ecoMode                  = request->hasParam("display.ecoMode", true);
