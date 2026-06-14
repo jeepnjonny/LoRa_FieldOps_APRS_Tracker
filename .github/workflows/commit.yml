@@ -12,12 +12,20 @@ jobs:
             fail-fast: false
             matrix:
               target:
-                - name: ttgo-t-beam-v1_2
+                - name: heltec_v3_433_aprs
+                  chip: esp32s3
+                - name: tbeam_433_aprs
                   chip: esp32
+                - name: lilygo_t3_433_aprs
+                  chip: esp32
+                - name: LoRanger_V1
+                  chip: esp32s3
+                - name: heltec_t114
+                  chip: nrf52
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
-            - uses: actions/setup-python@v4
+            - uses: actions/setup-python@v5
               with:
                   python-version: "3.9"
 
@@ -28,4 +36,5 @@ jobs:
               run: pio run -e ${{ matrix.target.name }}
 
             - name: Build FS
+              if: matrix.target.chip != 'nrf52'
               run: pio run --target buildfs -e ${{ matrix.target.name }}
