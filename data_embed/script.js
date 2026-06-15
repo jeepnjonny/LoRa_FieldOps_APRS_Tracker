@@ -392,6 +392,72 @@ document.getElementById('liveEventsClearBtn')?.addEventListener('click', functio
 // so the device's AsyncEventSource slot is freed promptly.
 window.addEventListener('beforeunload', liveEventsDisconnect);
 
+// ── OTA Firmware Update ───────────────────────────────────────────────────────
+
+(function () {
+    const showBtn   = document.getElementById('showOtaModal');
+    const uploadBtn = document.getElementById('otaUploadBtn');
+    const fileInput = document.getElementById('otaFile');
+    const progress  = document.getElementById('otaProgress');
+    const bar       = document.getElementById('otaBar');
+    const status    = document.getElementById('otaStatus');
+    const verDiv    = document.getElementById('otaCurrentVersion');
+
+    if (!showBtn) return;
+
+    // Open modal and populate current version
+    showBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        fetch('/version.json')
+            .then(r => r.json())
+            .then(d => {
+                if (verDiv) verDiv.textContent = 'Running: ' + d.version + ' (' + d.env + ')';
+            })
+            .catch(() => { if (verDiv) verDiv.textContent = ''; });
+        if (progress) progress.style.display = 'none';
+        if (bar)      { bar.style.width = '0%'; bar.textContent = '0%'; }
+        if (status)   status.textContent = '';
+        if (fileInput) fileInput.value = '';
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('otaModal')).show();
+    });
+
+    if (!uploadBtn) return;
+    uploadBtn.addEventListener('click', function () {
+        const file = fileInput && fileInput.files[0];
+        if (!file) { showToast('Select a firmware.bin file first.'); return; }
+
+        uploadBtn.disabled = true;
+        if (progress) progress.style.display = 'block';
+
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', function (e) {
+            if (!e.lengthComputable) return;
+            const pct = Math.round(e.loaded / e.total * 100);
+            if (bar)    { bar.style.width = pct + '%'; bar.textContent = pct + '%'; }
+            if (status) status.textContent = 'Uploading… ' + pct + '%';
+        });
+        xhr.addEventListener('load', function () {
+            if (xhr.status === 200 && xhr.responseText === 'OK') {
+                if (bar)    { bar.style.width = '100%'; bar.textContent = '100%'; bar.classList.remove('progress-bar-animated'); }
+                if (status) status.textContent = 'Upload complete — device is rebooting…';
+                uploadBtn.disabled = false;
+            } else {
+                if (status) status.textContent = 'Error: ' + xhr.responseText;
+                uploadBtn.disabled = false;
+            }
+        });
+        xhr.addEventListener('error', function () {
+            if (status) status.textContent = 'Upload failed — check connection and retry.';
+            uploadBtn.disabled = false;
+        });
+
+        xhr.open('POST', '/update');
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        xhr.send(fd);
+    });
+}());
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', fetchSettings);

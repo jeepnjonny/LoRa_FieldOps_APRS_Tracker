@@ -68,7 +68,9 @@ static String binarySubstring(const String& s, int start, int end) {
 #ifdef ARDUINO_ARCH_NRF52
 
 #include <bluefruit.h>
+#include <BLEDfu.h>
 
+static BLEDfu            bleDfu;
 static BLEService        aprsService(BLE_SERVICE_UUID);
 static BLECharacteristic txChar(BLE_CHAR_UUID_TX);
 static BLECharacteristic rxChar(BLE_CHAR_UUID_RX);
@@ -149,6 +151,10 @@ namespace BLE_Utils {
     }
 
     void setup() {
+        // BLEDfu must be registered before Bluefruit.begin() so the SoftDevice
+        // allocates an ATT handle for the Nordic DFU service at startup.
+        bleDfu.begin();
+
         Bluefruit.begin();
         // Disable the BSP's automatic LED blinking — it uses LED_BLUE (aliased to
         // PIN_LED1 = P1.03, the green LED) for advertising/connection state, which

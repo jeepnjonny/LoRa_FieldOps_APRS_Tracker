@@ -129,8 +129,11 @@ namespace SERIAL_Setup {
         Serial.println(F("                              balanced braces, Ctrl-C aborts)"));
         Serial.println(F("  discard                    leave without saving"));
         Serial.println(F("  exit                       leave (errors if dirty)"));
-        Serial.println(F("  reboot                     ESP.restart()"));
+        Serial.println(F("  reboot                     reboot the device"));
         Serial.println(F("  format YES-ERASE-ALL       wipe LittleFS/SPIFFS, reboot to defaults"));
+        #ifdef ARDUINO_ARCH_NRF52
+        Serial.println(F("  otadfu                     enter BLE OTA DFU mode (nRF52 only)"));
+        #endif
         Serial.println(F("  log <off|error|warn|info|debug>"));
         Serial.println(F("\n-- beacons --"));
         Serial.println(F("  beacon callsign <CALL-SSID>"));
@@ -884,6 +887,14 @@ namespace SERIAL_Setup {
         else if (cmd == "version") {
             Serial.println("version.date=" FIRMWARE_VERSION_DATE);
         }
+        #ifdef ARDUINO_ARCH_NRF52
+        else if (cmd == "otadfu") {
+            // Reset into Nordic OTA DFU bootloader mode; flash via nRF Connect app.
+            Serial.println(F("Entering OTA DFU mode — use Nordic nRF Connect app to upload firmware.zip"));
+            delay(200);
+            enterOTADfu();
+        }
+        #endif
         else err("unknown command: " + cmd + "  (try 'help')");
     }
 

@@ -1,0 +1,14 @@
+# OTA-capable partition table for 4MB flash (tbeam_433_aprs, lilygo_t3_433_aprs).
+# Two equal OTA app slots allow safe wireless firmware updates via the web UI (/update).
+# After flashing this layout via USB once, subsequent updates can be done OTA.
+#
+# App slot size: 1.875 MB each. If the firmware binary exceeds this limit,
+# PlatformIO will warn at upload time — use USB flashing for that cycle only.
+# SPIFFS is 192 KB, sufficient for tracker_conf.json (web assets are firmware-embedded).
+#
+# Name,     Type,   SubType,  Offset,     Size,     Flags
+nvs,        data,   nvs,      0x9000,     0x5000,
+otadata,    data,   ota,      0xe000,     0x2000,
+app0,       app,    ota_0,    0x10000,    0x1E0000,
+app1,       app,    ota_1,    0x1F0000,   0x1E0000,
+spiffs,     data,   spiffs,   0x3D0000,   0x30000,

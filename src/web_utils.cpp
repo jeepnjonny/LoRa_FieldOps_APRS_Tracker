@@ -18,12 +18,14 @@
 
 #include <ArduinoJson.h>
 #include <esp_timer.h>
+#include <Update.h>
 #include "configuration.h"
 #include "web_utils.h"
 #include "display.h"
 #include "battery_utils.h"
 #include "aprs_is_utils.h"
 #include "log_buffer.h"
+#include "version.h"
 
 extern Configuration               Config;
 
@@ -320,6 +322,47 @@ namespace WEB_Utils {
         request->send(response);
     }
 
+    // Reports the running firmware version and PlatformIO environment name.
+    void handleVersion(AsyncWebServerRequest *request) {
+        String json = "{\"version\":\"" FIRMWARE_VERSION_DATE "\",\"env\":\"" PIOENV "\"}";
+        request->send(200, "application/json", json);
+    }
+
+    // Streams the incoming firmware.bin (or spiffs.bin) into the active OTA slot.
+    // The file name drives slot selection: "spiffs.bin" → U_SPIFFS, else → U_FLASH.
+    // On success the device reboots via scheduleRestart(); on failure the error
+    // string is returned in the response body so the UI can display it.
+    void handleOtaUploadBody(AsyncWebServerRequest *request, const String &filename,
+                             size_t index, uint8_t *data, size_t len, bool final) {
+        if (!index) {
+            int cmd = (filename == "spiffs.bin") ? U_SPIFFS : U_FLASH;
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+                Update.printError(Serial);
+            }
+        }
+        if (Update.isRunning()) {
+            if (Update.write(data, len) != len) {
+                Update.printError(Serial);
+            }
+        }
+        if (final) {
+            if (!Update.end(true)) {
+                Update.printError(Serial);
+            }
+        }
+    }
+
+    void handleOtaUploadResponse(AsyncWebServerRequest *request) {
+        bool ok = !Update.hasError();
+        AsyncWebServerResponse *response = request->beginResponse(
+            200, "text/plain", ok ? "OK" : Update.errorString());
+        response->addHeader("Connection", "close");
+        request->send(response);
+        if (ok) {
+            scheduleRestart(1500);
+        }
+    }
+
     void setup() {
         server.on("/", HTTP_GET, handleHome);
         server.on("/status", HTTP_GET, handleStatus);
@@ -329,6 +372,8 @@ namespace WEB_Utils {
         server.on("/configuration.json", HTTP_GET, handleReadConfiguration);
         server.on("/configuration.json", HTTP_POST, handleWriteConfiguration);
         server.on("/action", HTTP_POST, handleAction);
+        server.on("/version.json", HTTP_GET, handleVersion);
+        server.on("/update", HTTP_POST, handleOtaUploadResponse, handleOtaUploadBody);
         server.on("/style.css", HTTP_GET, handleStyle);
         server.on("/script.js", HTTP_GET, handleScript);
         server.on("/bootstrap.css", HTTP_GET, handleBootstrapStyle);

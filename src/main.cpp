@@ -42,6 +42,9 @@
 #ifdef HAS_WEB_UI
 #include "web_utils.h"
 #endif
+#ifndef ARDUINO_ARCH_NRF52
+#include <esp_ota_ops.h>
+#endif
 
 
 String versionDate   = FIRMWARE_VERSION_DATE;
@@ -177,6 +180,13 @@ void setup() {
 
     startupScreen(versionDate);
     bootStatus("READY");
+
+    // Mark this OTA slot as valid so the bootloader won't auto-rollback to the
+    // previous firmware after repeated reboots. Must be called after all critical
+    // init succeeds — LoRa up, config loaded, role initialized.
+    #ifndef ARDUINO_ARCH_NRF52
+        esp_ota_mark_app_valid_cancel_rollback();
+    #endif
 }
 
 

@@ -8,6 +8,19 @@ Derived from [richonguzman/LoRa_APRS_Tracker](https://github.com/richonguzman/Lo
 
 ---
 
+## Install / Flash Firmware
+
+| Board | Method | Download |
+|---|---|---|
+| **Heltec T114** (nRF52840) | BLE OTA — use [Nordic nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-mobile) app → DFU tab | [`heltec_t114_dfu.zip`](https://github.com/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/latest) |
+| **Heltec T114** (nRF52840) | USB drag-and-drop — double-tap RESET → drag `.uf2` onto the USB drive | [`heltec_t114_firmware.uf2`](https://github.com/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/latest) |
+| **All ESP32 boards** | Web Serial flasher (Chrome/Edge) — one-click via USB cable | [apps.k7swi.org/LoRa\_Tracker](https://apps.k7swi.org/LoRa_Tracker/) |
+| **All ESP32 boards** | WiFi OTA — connect to device AP → `192.168.4.1` → Device → Update Firmware | Build or download `firmware.bin` from [Releases](https://github.com/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/latest) |
+
+> **nRF52 BLE OTA note:** The DFU zip requires the [Nordic nRF Connect](https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-mobile) app (iOS or Android). Open the app, connect to your T114, tap the DFU icon, and select `heltec_t114_dfu.zip`. Alternatively, type `otadfu` in the serial CLI to enter DFU mode before opening nRF Connect.
+
+---
+
 ## Supported Hardware
 
 | Board | MCU | LoRa | GPS | Display | WiFi | BLE |

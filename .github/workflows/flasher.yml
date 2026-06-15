@@ -21,25 +21,25 @@ jobs:
                       chip: esp32s3
                       flash_size: 8MB
                       flash_mode: dio
-                      spiffs_offset: "0x310000"
+                      spiffs_offset: "0x5F0000"   # partitions_8mb_ota.csv
 
                     - name: tbeam_433_aprs
                       chip: esp32
                       flash_size: 4MB
                       flash_mode: dio
-                      spiffs_offset: "0x310000"
+                      spiffs_offset: "0x3D0000"   # partitions_4mb_ota.csv
 
                     - name: lilygo_t3_433_aprs
                       chip: esp32
                       flash_size: 4MB
                       flash_mode: dio
-                      spiffs_offset: "0x310000"
+                      spiffs_offset: "0x3D0000"   # partitions_4mb_ota.csv
 
                     - name: LoRanger_V1
                       chip: esp32s3
                       flash_size: 8MB
                       flash_mode: qio
-                      spiffs_offset: "0x310000"
+                      spiffs_offset: "0x5F0000"   # partitions_8mb_ota.csv
 
                     # nRF52 target — UF2 drag-and-drop (no Web Serial support)
                     - name: heltec_t114
@@ -53,7 +53,7 @@ jobs:
                   python-version: "3.9"
 
             - name: Install build tools
-              run: pip install esptool platformio
+              run: pip install esptool platformio nrfutil
 
             - name: Build firmware
               run: pio run -e ${{ matrix.target.name }}
@@ -109,16 +109,30 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # ── nRF52: UF2 drag-and-drop ───────────────────────────────────
+            # ── nRF52: UF2 drag-and-drop + BLE DFU zip ────────────────────
             - name: Prepare nRF52 UF2
               if: matrix.target.chip == 'nrf52'
               run: cp .pio/build/${{ matrix.target.name }}/firmware.uf2 \
                       ${{ matrix.target.name }}_firmware.uf2
 
-            - name: Upload nRF52 UF2 to release
+            - name: Generate nRF52 BLE DFU package
+              if: matrix.target.chip == 'nrf52'
+              run: |
+                  # Produces a Nordic DFU .zip loadable by nRF Connect app (iOS/Android).
+                  # --sd-req 0x00B6 = SoftDevice s140 v6.1.1 (matches boards/heltec_t114.json)
+                  nrfutil pkg generate \
+                    --hw-version 52 \
+                    --sd-req 0x00B6 \
+                    --application .pio/build/${{ matrix.target.name }}/firmware.hex \
+                    --application-version 1 \
+                    ${{ matrix.target.name }}_dfu.zip
+
+            - name: Upload nRF52 firmware artifacts to release
               if: matrix.target.chip == 'nrf52'
               uses: softprops/action-gh-release@v2
               with:
-                  files: ${{ matrix.target.name }}_firmware.uf2
+                  files: |
+                      ${{ matrix.target.name }}_firmware.uf2
+                      ${{ matrix.target.name }}_dfu.zip
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
