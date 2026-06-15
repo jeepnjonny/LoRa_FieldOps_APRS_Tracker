@@ -1,30 +1,22 @@
-name: Build and Publish Firmware Flasher
+name: Build and Publish Firmware
 
-# Triggers:
-#   - Automatically on every GitHub Release publish (builds firmware + deploys flasher)
-#   - Manually via Actions → "Run workflow" (deploy-only: skips build, uses existing release assets)
+# Runs on every GitHub Release publish.
+# Builds all 5 project targets and uploads firmware as release assets.
+# The web flasher at apps.k7swi.org is updated separately by running
+# ~/deploy_flasher.sh on the server after each release.
 
 on:
     release:
         types: [published]
-    workflow_dispatch:
-        inputs:
-            tag:
-                description: 'Release tag to deploy (e.g. v1.2.3)'
-                required: true
-                type: string
 
 jobs:
-    # ── Build each target and upload its binary to the release ─────────────
-    # Skipped on manual dispatch — release assets already exist on the chosen tag.
     build:
-        if: github.event_name == 'release'
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
             matrix:
                 target:
-                    # ESP32 targets — produce web_factory.bin for Web Serial flashing
+                    # ESP32 targets — merged factory binary for Web Serial flashing
                     - name: heltec_v3_433_aprs
                       chip: esp32s3
                       flash_size: 8MB
@@ -49,7 +41,7 @@ jobs:
                       flash_mode: qio
                       spiffs_offset: "0x310000"
 
-                    # nRF52 target — produces firmware.uf2 (no Web Serial)
+                    # nRF52 target — UF2 drag-and-drop (no Web Serial support)
                     - name: heltec_t114
                       chip: nrf52
 
@@ -66,7 +58,6 @@ jobs:
             - name: Build firmware
               run: pio run -e ${{ matrix.target.name }}
 
-            # Filesystem image is ESP32-only (nRF52 embeds config in firmware via embed_config.py)
             - name: Build filesystem image
               if: matrix.target.chip != 'nrf52'
               run: pio run --target buildfs -e ${{ matrix.target.name }}
@@ -110,8 +101,6 @@ jobs:
                       "$SPIFFS" installer/firmware/spiffs.bin
                   fi
 
-            # Upload the merged binary as a named, flat release asset so
-            # gen_manifests.py can reference it by a predictable URL.
             - name: Upload ESP32 factory binary to release
               if: matrix.target.chip != 'nrf52'
               uses: softprops/action-gh-release@v2
@@ -120,7 +109,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # ── nRF52: copy UF2 for release upload ────────────────────────
+            # ── nRF52: UF2 drag-and-drop ───────────────────────────────────
             - name: Prepare nRF52 UF2
               if: matrix.target.chip == 'nrf52'
               run: cp .pio/build/${{ matrix.target.name }}/firmware.uf2 \
@@ -133,60 +122,3 @@ jobs:
                   files: ${{ matrix.target.name }}_firmware.uf2
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    # ── Regenerate manifests and deploy to apps.k7swi.org ─────────────────
-    # On release publish: runs after the build matrix (always, even on partial failure).
-    # On manual dispatch: skips build entirely; uses the tag supplied in the input.
-    #
-    # Required GitHub Actions secrets:
-    #   DEPLOY_HOST     — hostname or IP of the server (e.g. apps.k7swi.org)
-    #   DEPLOY_USER     — SSH login user on the server
-    #   DEPLOY_SSH_KEY  — private SSH key (PEM/OpenSSH); matching pubkey must be
-    #                     in ~/.ssh/authorized_keys on the server
-    #   DEPLOY_PATH     — absolute path on the server for the flasher root
-    #                     (e.g. /var/www/html/LoRa_Tracker)
-    update-flasher:
-        needs: [build]
-        if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-        runs-on: ubuntu-latest
-
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-python@v5
-              with:
-                  python-version: "3.9"
-
-            - name: Resolve deploy tag
-              id: tag
-              run: |
-                  # workflow_dispatch supplies the tag via input; release publish uses ref_name
-                  if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-                    echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-                  fi
-
-            - name: Generate flasher manifests
-              run: |
-                  python tools/gen_manifests.py \
-                    --tag "${{ steps.tag.outputs.value }}" \
-                    --repo "${{ github.repository }}" \
-                    --output flasher/manifests
-
-            - name: Install SSH key
-              run: |
-                  install -m 700 -d ~/.ssh
-                  echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-                  chmod 600 ~/.ssh/deploy_key
-                  # Trust the server's host key on first connect
-                  ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
-
-            - name: Deploy flasher to server via rsync
-              run: |
-                  rsync -az --delete \
-                    -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
-                    flasher/ \
-                    "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/"
-              # flasher/ is synced into DEPLOY_PATH so the URL becomes:
-              #   https://apps.k7swi.org/LoRa_Tracker/index.html
