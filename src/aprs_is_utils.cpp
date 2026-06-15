@@ -222,9 +222,12 @@ namespace APRS_IS_Utils {
             // Downlink: re-TX IS packets to LoRa RF when passcode is valid
             if (!passcodeValid) continue;
 
-            // Filter out third-party or loopback packets
-            if (line.indexOf("TCPIP") != -1) continue;
+            // Filter out third-party or loopback packets.
+            // qAR/qAO = originated from RF — don't re-gate back to RF (avoids IS→RF→IS loops).
+            if (line.indexOf("TCPIP")  != -1) continue;
             if (line.indexOf("NOGATE") != -1) continue;
+            if (line.indexOf(",qAR,")  != -1) continue;
+            if (line.indexOf(",qAO,")  != -1) continue;
 
             const String& callsign = Config.beacons[0].callsign;
             String sender = line.substring(0, line.indexOf(">"));
