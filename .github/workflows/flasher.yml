@@ -122,8 +122,9 @@ jobs:
             # ── nRF52: UF2 drag-and-drop + BLE DFU zip ────────────────────
             - name: Prepare nRF52 UF2
               if: matrix.target.chip == 'nrf52'
-              run: cp .pio/build/${{ matrix.target.name }}/firmware.uf2 \
-                      ${{ matrix.target.name }}_firmware.uf2
+              run: |
+                  cp .pio/build/${{ matrix.target.name }}/firmware.uf2 \
+                     ${{ matrix.target.name }}_firmware.uf2
 
             - name: Generate nRF52 BLE DFU package
               if: matrix.target.chip == 'nrf52'
