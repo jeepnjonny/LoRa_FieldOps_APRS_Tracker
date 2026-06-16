@@ -35,10 +35,7 @@
                             </li>
                         </ul>
                         <div class="d-flex gap-2 align-items-center">
-                            <a href="https://apps.k7swi.org/LoRa_Tracker/"
-                               target="_blank" rel="noopener"
-                               class="btn btn-outline-warning my-2 my-sm-0"
-                               title="Open web firmware flasher">⚡ Flash Firmware</a>
+                            <span id="navVersion" class="text-muted small my-2 my-sm-0"></span>
                             <button class="btn btn-success my-2 my-sm-0" type="submit">Save</button>
                         </div>
                     </div>
@@ -65,7 +62,7 @@
                                                 <input type="text" class="form-control" id="beacons.0.callsign" name="beacons.0.callsign" maxlength="9" />
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label" for="beacons.0.tacticalCallsign">Tactical callsign <span class="text-muted fw-normal small">(optional — sends as object)</span></label>
+                                                <label class="form-label" for="beacons.0.tacticalCallsign">Tactical callsign/Object</label>
                                                 <input type="text" class="form-control" id="beacons.0.tacticalCallsign" name="beacons.0.tacticalCallsign" maxlength="9" />
                                             </div>
                                             <div class="col-md-2">
@@ -116,6 +113,7 @@
                                             <div class="col-md-3">
                                                 <label class="form-label" for="beaconPath">Beacon TX path</label>
                                                 <select class="form-select" id="beaconPath" name="beaconPath">
+                                                    <option value="">NONE  (direct only)</option>
                                                     <option value="WIDE1-1">WIDE1-1  (1 hop)</option>
                                                     <option value="WIDE1-1,WIDE2-1">WIDE1-1,WIDE2-1  (2 hops)</option>
                                                     <option value="WIDE1-1,WIDE2-2">WIDE1-1,WIDE2-2  (3 hops)</option>
@@ -173,7 +171,98 @@
                                 </div>
                             </div>
 
-                            <!-- 3. LoRa Radio -->
+                            <!-- 3. PHG Station Info -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#phgSection">
+                                        PHG Station Info
+                                        <span class="badge bg-secondary ms-2 fw-normal" style="font-size:0.7em">iGate / Digi</span>
+                                    </button>
+                                </h2>
+                                <div id="phgSection" class="accordion-collapse collapse" data-bs-parent="#configAccordion">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small mb-3">PHG (Power-Height-Gain) advertises fixed-station RF capabilities on APRS. Sent as a separate uncompressed beacon on its own timer — normal compressed beacons are unaffected. Most useful for iGate and Digipeater fixed stations.</p>
+                                        <div class="row g-3">
+                                            <div class="col-12">
+                                                <div class="form-check form-switch mb-0">
+                                                    <input class="form-check-input" type="checkbox" id="phg.enabled" name="phg.enabled" />
+                                                    <label class="form-check-label" for="phg.enabled">Enable PHG beacon</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label" for="phg.power">TX Power</label>
+                                                <select class="form-select" id="phg.power" name="phg.power">
+                                                    <option value="0">0 W (code 0)</option>
+                                                    <option value="1">1 W (code 1)</option>
+                                                    <option value="2">4 W (code 2)</option>
+                                                    <option value="3">9 W (code 3)</option>
+                                                    <option value="4">16 W (code 4)</option>
+                                                    <option value="5">25 W (code 5)</option>
+                                                    <option value="6">36 W (code 6)</option>
+                                                    <option value="7">49 W (code 7)</option>
+                                                    <option value="8">64 W (code 8)</option>
+                                                    <option value="9">81 W (code 9)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label" for="phg.height">HAAT (Height above avg terrain)</label>
+                                                <select class="form-select" id="phg.height" name="phg.height">
+                                                    <option value="0">10 ft (code 0)</option>
+                                                    <option value="1">20 ft (code 1)</option>
+                                                    <option value="2">40 ft (code 2)</option>
+                                                    <option value="3">80 ft (code 3)</option>
+                                                    <option value="4">160 ft (code 4)</option>
+                                                    <option value="5">320 ft (code 5)</option>
+                                                    <option value="6">640 ft (code 6)</option>
+                                                    <option value="7">1280 ft (code 7)</option>
+                                                    <option value="8">2560 ft (code 8)</option>
+                                                    <option value="9">5120 ft (code 9)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label" for="phg.gain">Antenna gain (dBd)</label>
+                                                <select class="form-select" id="phg.gain" name="phg.gain">
+                                                    <option value="0">0 dBd</option>
+                                                    <option value="1">1 dBd</option>
+                                                    <option value="2">2 dBd</option>
+                                                    <option value="3">3 dBd</option>
+                                                    <option value="4">4 dBd</option>
+                                                    <option value="5">5 dBd</option>
+                                                    <option value="6">6 dBd</option>
+                                                    <option value="7">7 dBd</option>
+                                                    <option value="8">8 dBd</option>
+                                                    <option value="9">9 dBd</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label" for="phg.directivity">Directivity</label>
+                                                <select class="form-select" id="phg.directivity" name="phg.directivity">
+                                                    <option value="0">Omni (code 0)</option>
+                                                    <option value="1">NE (code 1)</option>
+                                                    <option value="2">E (code 2)</option>
+                                                    <option value="3">SE (code 3)</option>
+                                                    <option value="4">S (code 4)</option>
+                                                    <option value="5">SW (code 5)</option>
+                                                    <option value="6">W (code 6)</option>
+                                                    <option value="7">NW (code 7)</option>
+                                                    <option value="8">N (code 8)</option>
+                                                    <option value="9">High-Gain Omni (code 9)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label" for="phg.beaconRate">PHG rate (min)</label>
+                                                <input type="number" class="form-control" id="phg.beaconRate" name="phg.beaconRate" min="1" max="1440" />
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label">Preview</label>
+                                                <input type="text" class="form-control font-monospace" id="phgPreview" readonly />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. LoRa Radio -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#loraSection">
@@ -285,7 +374,7 @@
                                             </div>
                                             <input type="text" class="form-control" style="max-width:16rem" id="bluetooth.deviceName" name="bluetooth.deviceName" maxlength="20" placeholder="Device name" />
                                         </div>
-                                        <p class="form-text mt-2 mb-0">KISS TNC — connects to APRS.fi, APRSDroid, Pinpoint.</p>
+                                        <p class="form-text mt-2 mb-0">KISS TNC — connects to APRS.fi, APRSDroid, Pinpoint. Mutually exclusive with WiFi</p>
                                     </div>
                                 </div>
                             </div>
@@ -379,7 +468,7 @@
                                 </div>
                             </div>
 
-                            <!-- 8. Device Role -->
+                            <!-- 9. Device Role -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#roleSection">
@@ -406,7 +495,7 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label" for="digiMode">Digipeat mode <span class="text-muted fw-normal small">(independent of role)</span></label>
+                                                <label class="form-label" for="digiMode">Digipeat mode </label>
                                                 <select class="form-select" id="digiMode" name="digiMode">
                                                     <option value="0">Off</option>
                                                     <option value="1">WIDE1 only — fill-in</option>
@@ -436,7 +525,7 @@
                                 </div>
                             </div>
 
-                            <!-- 9. WiFi -->
+                            <!-- 10. WiFi -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wifiSection">
@@ -447,7 +536,7 @@
                                     <div class="accordion-body">
                                         <div class="row g-3">
                                             <div class="col-12"><h6>Access Point</h6>
-                                                <small class="text-muted">AP starts when callsign is NOCALL-7 or the USR button is held at boot.</small>
+                                                <small class="text-muted">AP starts when callsign is NOCALL-7 or the USR button is held >8s.</small>
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label" for="wifiAP.password">AP password</label>
@@ -598,7 +687,7 @@
                         <p class="text-muted small mb-3">
                             Upload a <code>firmware.bin</code> built for this board to replace the running firmware.
                             The device will reboot automatically after a successful upload.
-                            Get firmware from the <a href="https://apps.k7swi.org/LoRa_Tracker/" target="_blank" rel="noopener">release flasher</a>.
+                            Get firmware from the <a href="https://github.com/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/tag/Current" target="_blank" rel="noopener">GitHub releases</a>.
                         </p>
                         <div class="mb-3">
                             <label class="form-label fw-semibold" for="otaFile">Firmware file (<code>firmware.bin</code>)</label>
@@ -610,6 +699,8 @@
                                      role="progressbar" style="width:0%">0%</div>
                             </div>
                             <small id="otaStatus" class="text-muted"></small>
+                            <button id="otaReloadBtn" class="btn btn-success btn-sm mt-2" style="display:none"
+                                    onclick="location.reload()">Reload Page</button>
                         </div>
                         <div id="otaCurrentVersion" class="text-muted small mb-2"></div>
                     </div>

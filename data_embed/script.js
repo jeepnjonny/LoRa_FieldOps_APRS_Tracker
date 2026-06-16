@@ -32,6 +32,21 @@ function showToast(msg) {
     t.show();
 }
 
+// ── PHG live preview ─────────────────────────────────────────────────────────
+
+function updatePhgPreview() {
+    const p = document.getElementById('phg.power')?.value       ?? '7';
+    const h = document.getElementById('phg.height')?.value      ?? '2';
+    const g = document.getElementById('phg.gain')?.value        ?? '3';
+    const d = document.getElementById('phg.directivity')?.value ?? '0';
+    const preview = document.getElementById('phgPreview');
+    if (preview) preview.value = 'PHG' + p + h + g + d;
+}
+
+['phg.power', 'phg.height', 'phg.gain', 'phg.directivity'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', updatePhgPreview);
+});
+
 // ── Progressive disclosure ────────────────────────────────────────────────────
 
 function updateVisibility() {
@@ -131,6 +146,15 @@ function loadSettings(s) {
     setVal('ptt.reverse',     ptt.reverse     ?? false);
     setVal('ptt.preDelay',    ptt.preDelay    ?? 100);
     setVal('ptt.postDelay',   ptt.postDelay   ?? 100);
+
+    const phg = s.phg ?? {};
+    setVal('phg.enabled',     phg.enabled     ?? false);
+    setVal('phg.power',       phg.power       ?? 7);
+    setVal('phg.height',      phg.height      ?? 2);
+    setVal('phg.gain',        phg.gain        ?? 3);
+    setVal('phg.directivity', phg.directivity ?? 0);
+    setVal('phg.beaconRate',  phg.beaconRate  ?? 10);
+    updatePhgPreview();
 
     const oth = s.other ?? {};
     setVal('beaconPath',              s.beaconPath              ?? s.path ?? oth.beaconPath  ?? 'WIDE1-1');
@@ -402,6 +426,7 @@ window.addEventListener('beforeunload', liveEventsDisconnect);
     const bar       = document.getElementById('otaBar');
     const status    = document.getElementById('otaStatus');
     const verDiv    = document.getElementById('otaCurrentVersion');
+    const reloadBtn = document.getElementById('otaReloadBtn');
 
     if (!showBtn) return;
 
@@ -439,8 +464,9 @@ window.addEventListener('beforeunload', liveEventsDisconnect);
         xhr.addEventListener('load', function () {
             if (xhr.status === 200 && xhr.responseText === 'OK') {
                 if (bar)    { bar.style.width = '100%'; bar.textContent = '100%'; bar.classList.remove('progress-bar-animated'); }
-                if (status) status.textContent = 'Upload complete — device is rebooting…';
+                if (status) status.textContent = 'Upload complete — waiting for device to reboot…';
                 uploadBtn.disabled = false;
+                pollForReboot();
             } else {
                 if (status) status.textContent = 'Error: ' + xhr.responseText;
                 uploadBtn.disabled = false;
@@ -456,8 +482,49 @@ window.addEventListener('beforeunload', liveEventsDisconnect);
         fd.append('file', file, file.name);
         xhr.send(fd);
     });
+
+    function pollForReboot() {
+        // Device schedules restart 1500 ms after responding — allow time to shut down and boot.
+        const INITIAL_DELAY_MS = 6000;   // 1.5 s restart delay + ~4 s ESP32 boot
+        const POLL_INTERVAL_MS = 2000;
+        const TIMEOUT_MS       = 60000;
+
+        let elapsed = 0;
+
+        function attempt() {
+            fetch('/version.json', { cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function (d) {
+                    // Device is back — show new version and auto-reload after 2 s.
+                    if (status) status.textContent =
+                        'Device back online — firmware ' + d.version + ' (' + d.env + '). Reloading…';
+                    setTimeout(function () { location.reload(); }, 2000);
+                })
+                .catch(function () {
+                    elapsed += POLL_INTERVAL_MS;
+                    if (elapsed >= TIMEOUT_MS) {
+                        if (status) status.textContent =
+                            'Device did not respond after 60 s — check power and reload manually.';
+                        if (reloadBtn) reloadBtn.style.display = '';
+                        return;
+                    }
+                    setTimeout(attempt, POLL_INTERVAL_MS);
+                });
+        }
+
+        setTimeout(attempt, INITIAL_DELAY_MS);
+    }
 }());
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', fetchSettings);
+document.addEventListener('DOMContentLoaded', function () {
+    fetchSettings();
+    fetch('/version.json')
+        .then(r => r.json())
+        .then(d => {
+            const el = document.getElementById('navVersion');
+            if (el && d.version) el.textContent = 'v' + d.version;
+        })
+        .catch(() => {});
+});
