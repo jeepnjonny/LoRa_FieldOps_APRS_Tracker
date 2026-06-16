@@ -46,7 +46,9 @@ static uint8_t  updateCounter  = 100;
 
 static std::queue<String>  outBuffer;
 static uint32_t            lastOutTx = 0;
-static constexpr uint32_t  OUT_DELAY_MS = 200;  // inter-packet gap
+static constexpr uint32_t  OUT_DELAY_MS           = 200;   // normal inter-packet gap
+static constexpr uint32_t  OUT_DELAY_AFTER_ACK_MS = 2000;  // give receiver time to re-arm RX after an ACK
+static bool                lastOutWasAck = false;
 
 namespace STATION_Utils {
 
@@ -57,9 +59,11 @@ namespace STATION_Utils {
     void processOutputPacketBuffer() {
         if (outBuffer.empty()) return;
         uint32_t now = millis();
-        if (now - lastOutTx < OUT_DELAY_MS) return;
+        uint32_t gap = lastOutWasAck ? OUT_DELAY_AFTER_ACK_MS : OUT_DELAY_MS;
+        if (now - lastOutTx < gap) return;
         String pkt = outBuffer.front();
         outBuffer.pop();
+        lastOutWasAck = (pkt.indexOf(":ack") >= 0);
         LoRa_Utils::sendNewPacket(pkt);
         lastOutTx = now;
     }

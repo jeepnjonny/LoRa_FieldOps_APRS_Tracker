@@ -107,6 +107,7 @@ namespace {
 
 void displaySetup() {
     _cacheValid = false;
+    _tftReady   = false;   // pessimistic default; set true only after successful init
     #ifdef HELTEC_T114
         pinMode(3, OUTPUT);          // VTFT_CTRL (P0.3) — active-LOW to enable TFT power
         digitalWrite(3, LOW);
@@ -115,7 +116,17 @@ void displaySetup() {
     pinMode(TFT_BL_PIN, OUTPUT);
     digitalWrite(TFT_BL_PIN, LOW);  // backlight on (active-LOW per T114 variant.h)
     SPI1.begin();
+
+    // Hardware SPI (NRF_SPIM2) completes its DMA transfers regardless of display
+    // presence, so tft.init() will normally return in < 200 ms.  If it somehow
+    // exceeds 2 s the display is absent or the bus is stuck — stay headless.
+    uint32_t t0 = millis();
     tft.init(135, 240);
+    if (millis() - t0 > 2000) {
+        Serial.println(F("[Display] ST7789 init timeout — running headless"));
+        return;
+    }
+
     tft.setRotation(Config.display.turn180 ? 3 : 1);   // landscape; 3 = flipped 180°
     tft.fillScreen(COLOR_BG);
     tft.setTextWrap(false);

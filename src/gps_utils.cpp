@@ -233,10 +233,10 @@ namespace GPS_Utils {
     void calculateHeadingDelta(int speed) {
         double headingDelta = abs(previousHeading - currentHeading);
         if (headingDelta > 180.0) headingDelta = 360.0 - headingDelta;
-        // Minimum turn interval: half the profile's fast rate, floored at 10 s.
-        // Prevents jitter oscillation from triggering beacons faster than the profile intends.
-        uint32_t turnMinTime = max(10000UL, (uint32_t)currentSmartBeaconValues.fastRate * 500UL);
-        if (speed > 1 && lastTx > turnMinTime) {
+        // Don't allow a heading-change beacon sooner than the current beacon interval.
+        // When parked (speed==0) txInterval equals nonSmartBeaconRate, so GPS heading
+        // noise cannot trigger a beacon during the stationary wait.
+        if (speed > 1 && lastTx >= txInterval) {
             int TurnMinAngle = currentSmartBeaconValues.turnMinDeg + (currentSmartBeaconValues.turnSlope / speed);
             if (headingDelta > TurnMinAngle) {
                 sendUpdate = true;

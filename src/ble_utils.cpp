@@ -90,6 +90,7 @@ static void disconnectCallback(uint16_t conn_handle, uint8_t reason) {
 }
 
 static void rxWriteCallback(uint16_t conn_hdl, BLECharacteristic* chr, uint8_t* data, uint16_t len) {
+    logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE RX", "write callback fired, %d bytes", (int)len);
     for (uint16_t i = 0; i < len; i++) {
         nrf52KissBuffer.concat((char)data[i]);
     }
@@ -137,7 +138,11 @@ static void rxWriteCallback(uint16_t conn_hdl, BLECharacteristic* chr, uint8_t* 
         if (frame.length() >= 4) {
             bool isDataFrame = false;
             kissPacketToLoRa = KISS_Utils::decodeKISS(frame, isDataFrame);
-            if (isDataFrame) shouldSendToLoRa = true;
+            if (isDataFrame) {
+                shouldSendToLoRa = true;
+                logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE RX",
+                           "KISS data frame queued, len=%d", (int)kissPacketToLoRa.length());
+            }
         }
     }
 }
@@ -197,7 +202,7 @@ namespace BLE_Utils {
 
     void sendToLoRa() {
         if (!shouldSendToLoRa) return;
-        logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "BLE TX", "%s", kissPacketToLoRa.c_str());
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE TX", "decoded: \"%s\"", kissPacketToLoRa.c_str());
         LoRa_Utils::sendNewPacket(kissPacketToLoRa);   // displayTx() fires inside sendNewPacket
         kissPacketToLoRa    = "";
         shouldSendToLoRa    = false;
@@ -244,6 +249,7 @@ class MyServerCallbacks : public NimBLEServerCallbacks {
 class MyCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic* pCharacteristic) override {
         std::string receivedData = pCharacteristic->getValue();
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE RX", "write callback fired, %d bytes", (int)receivedData.size());
 
         for (uint8_t c : receivedData) {
             kissSerialBuffer += (char)c;
@@ -291,7 +297,11 @@ class MyCallbacks : public NimBLECharacteristicCallbacks {
             if (frame.length() >= 4) {
                 bool isDataFrame    = false;
                 BLEToLoRaPacket     = KISS_Utils::decodeKISS(frame, isDataFrame);
-                if (isDataFrame) shouldSendBLEtoLoRa = true;
+                if (isDataFrame) {
+                    shouldSendBLEtoLoRa = true;
+                    logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE RX",
+                               "KISS data frame queued, len=%d", (int)BLEToLoRaPacket.length());
+                }
             }
         }
     }
@@ -332,7 +342,7 @@ namespace BLE_Utils {
 
     void sendToLoRa() {
         if (!shouldSendBLEtoLoRa) return;
-        logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "BLE TX", "%s", BLEToLoRaPacket.c_str());
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_INFO, "BLE TX", "decoded: \"%s\"", BLEToLoRaPacket.c_str());
         LoRa_Utils::sendNewPacket(BLEToLoRaPacket);   // displayTx() fires inside sendNewPacket
         BLEToLoRaPacket         = "";
         shouldSendBLEtoLoRa     = false;
