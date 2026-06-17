@@ -170,6 +170,21 @@ jobs:
               with:
                   ref: main
 
+            - name: Download firmware for GitHub Pages hosting
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+              run: |
+                  # Firmware is served from GitHub Pages (flasher/firmware/) because
+                  # github.com release download URLs block cross-origin CORS fetches.
+                  mkdir -p flasher/firmware
+                  gh release download "${TAG}" \
+                    --repo KJ7NYE/LoRa_FieldOps_APRS_Tracker \
+                    --pattern "*_web_factory.bin" \
+                    --pattern "heltec_t114_firmware.uf2" \
+                    --dir flasher/firmware \
+                    --clobber
+
             - name: Generate flasher manifests
               env:
                   TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}

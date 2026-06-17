@@ -11,7 +11,10 @@ import sys
 
 tag       = sys.argv[1]
 published = sys.argv[2]
-base      = f"https://github.com/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/download/{tag}"
+# Firmware is served from GitHub Pages (flasher/firmware/) for CORS compatibility.
+# github.com release download URLs redirect without CORS headers and are blocked
+# by browser CORS policy when fetched from kj7nye.github.io.
+base = "https://kj7nye.github.io/LoRa_FieldOps_APRS_Tracker/flasher/firmware"
 
 ESP_TARGETS = [
     {
