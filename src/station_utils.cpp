@@ -292,7 +292,9 @@ namespace STATION_Utils {
             sendBeacon();
             return;
         }
-        String packet = b.callsign + ">APLRT1," + Config.beaconPath + ":>" + b.status;
+        // Use generateStatusPacket so that path handling (WIDE-only, DIRECT=no-path) is
+        // consistent with all other beacon types; avoids a dangling comma when path is empty.
+        String packet = APRSPacketLib::generateStatusPacket(b.callsign, "APLRT1", Config.beaconPath, b.status);
         {
             int selfColon = packet.indexOf(":");
             String selfPayload = (selfColon >= 0) ? packet.substring(selfColon + 1) : packet;

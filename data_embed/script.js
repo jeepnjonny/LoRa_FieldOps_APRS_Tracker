@@ -161,7 +161,9 @@ function loadSettings(s) {
     updatePhgPreview();
 
     const oth = s.other ?? {};
-    setVal('beaconPath',              s.beaconPath              ?? s.path ?? oth.beaconPath  ?? 'WIDE1-1');
+    // Normalize legacy empty-string path ("" = no repeat) to the explicit "DIRECT" option.
+    const _bp = s.beaconPath ?? s.path ?? oth.beaconPath ?? 'WIDE1-1';
+    setVal('beaconPath', _bp === '' ? 'DIRECT' : _bp);
     setVal('nonSmartBeaconRate',      s.nonSmartBeaconRate      ?? oth.nonSmartBeaconRate  ?? 15);
     setVal('sendCommentAfterXBeacons',s.sendCommentAfterXBeacons?? oth.sendCommentAfterXBeacons ?? 10);
     setVal('sendSpeedCourse',         s.sendSpeedCourse         ?? oth.sendSpeedCourse ?? true);

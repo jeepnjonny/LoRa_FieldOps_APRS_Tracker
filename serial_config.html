@@ -1300,8 +1300,12 @@ function renderConfig() {
       }));
 
     body.appendChild(mkGroupTitle('Beacon Timing & Path'));
-    body.appendChild(mkSelect('Beacon TX path', other.beaconPath ?? other.path ?? 'WIDE1-1',
-      [{v:'WIDE1-1', l:'WIDE1-1  (1 hop)'}, {v:'WIDE1-1,WIDE2-1', l:'WIDE1-1,WIDE2-1  (2 hops)'}, {v:'WIDE1-1,WIDE2-2', l:'WIDE1-1,WIDE2-2  (3 hops)'}],
+    const _bpRaw = other.beaconPath ?? other.path ?? 'WIDE1-1';
+    body.appendChild(mkSelect('Beacon TX path', _bpRaw === '' ? 'DIRECT' : _bpRaw,
+      [{v:'DIRECT', l:'DIRECT  (no repeat, iGate/digi)'},
+       {v:'WIDE1-1', l:'WIDE1-1  (1 hop)'},
+       {v:'WIDE1-1,WIDE2-1', l:'WIDE1-1,WIDE2-1  (2 hops)'},
+       {v:'WIDE1-1,WIDE2-2', l:'WIDE1-1,WIDE2-2  (3 hops)'}],
       v => sendCmd(`beaconpath ${v}`)));
     body.appendChild(mkNumber('Non-smart rate (min)', other.nonSmartBeaconRate, v => sendCmd(`nonsmartrate ${v}`)));
   });

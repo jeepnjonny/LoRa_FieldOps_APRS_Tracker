@@ -174,7 +174,7 @@ namespace SERIAL_Setup {
         Serial.println(F("\n-- other --"));
         Serial.println(F("  digi <off|wide1|wide1+wide2>  (works with any role)"));
         Serial.println(F("  wifi password <text>       (AP password; AP triggers on NOCALL or USR button at boot)"));
-        Serial.println(F("  beaconpath <text>"));
+        Serial.println(F("  beaconpath <DIRECT|WIDE1-1|WIDE1-1,WIDE2-1|WIDE1-1,WIDE2-2>"));
         Serial.println(F("  gps read                   print current GPS position (all sources)"));
         Serial.println(F("  sendspeed on|off             sendalt on|off"));
         Serial.println(F("  nonsmartrate <min>"));
