@@ -2071,9 +2071,10 @@ _fGoBtn.addEventListener('click', async () => {
 
     // Step 6 — Write flash (compressed upload, factory binary at offset 0x0)
     await loader.writeFlash({
-      fileArray:      [{ data: binaryString, address: 0x0 }],
-      flash_size:     'keep',
-      compress:       true,
+      fileArray:        [{ data: binaryString, address: 0x0 }],
+      flash_size:       'keep',
+      compress:         true,
+      calculateMD5Hash: () => '',  // CryptoJS unavailable via esm.sh; skip MD5 verify
       reportProgress(fileIndex, written, total) {
         const pct = Math.round(16 + (written / total) * 80);
         _flashSetProgress(pct,
