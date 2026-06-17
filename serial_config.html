@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LoRa Tracker — Serial Config</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" crossorigin="anonymous">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
   <style>
     html, body { height: 100%; margin: 0; overflow: hidden; }
 
@@ -114,6 +115,13 @@
     #compat-warning { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; }
 
     body { display: flex; flex-direction: column; }
+
+    esp-web-install-button::part(button) {
+      background: #9a6700; color: #fff; border: none;
+      border-radius: 6px; padding: 6px 18px; font-size: 0.95rem;
+      cursor: pointer; font-family: inherit;
+    }
+    esp-web-install-button::part(button):hover { background: #b37800; }
   </style>
 </head>
 <body>
@@ -287,7 +295,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
         <a id="flash-btn-uf2" class="btn btn-outline-info d-none" href="#" download>&#x2B07; Download UF2</a>
-        <button id="flash-btn-go" class="btn btn-warning d-none" type="button">&#x26A1; Flash Firmware</button>
+        <esp-web-install-button id="flash-install-btn" class="d-none"></esp-web-install-button>
       </div>
 
     </div><!-- /modal-content -->
@@ -1890,15 +1898,12 @@ document.getElementById('btn-clear-con').addEventListener('click', () => { conso
 // ─────────────────────────────────────────────
 
 const FLASH_RELEASES_API  = 'https://api.github.com/repos/KJ7NYE/LoRa_FieldOps_APRS_Tracker/releases/latest';
-// esm.sh converts the CJS esptool-js package to browser ESM and auto-polyfills
-// Node.js built-ins (Buffer, process, etc.) — unpkg/bundle.js is CJS-only and
-// fails with "require is not defined" when used with dynamic import().
-const ESPTOOLJS_URL       = 'https://esm.sh/esptool-js@0.4.3';
-// Firmware is served from GitHub Pages instead of github.com release URLs.
-// github.com redirects lack CORS headers and are blocked by browser policy.
-const FLASH_FIRMWARE_BASE = 'https://kj7nye.github.io/LoRa_FieldOps_APRS_Tracker/flasher/firmware';
+// Manifests and firmware are served from GitHub Pages (CORS-safe).
+// github.com release download URLs redirect without CORS headers and are blocked by the browser.
+const FLASH_MANIFEST_BASE = 'https://kj7nye.github.io/LoRa_FieldOps_APRS_Tracker/flasher/manifests';
+const FLASH_UF2_BASE      = 'https://kj7nye.github.io/LoRa_FieldOps_APRS_Tracker/flasher/firmware';
 
-// Board env name → chip family (nrf52 uses UF2 path, others use esptool-js)
+// Board env name → chip family (nrf52 uses UF2 drag-and-drop, others use esp-web-tools)
 const FLASH_BOARDS = {
   'heltec_v3_433_aprs': 'esp32s3',
   'tbeam_433_aprs':     'esp32',
@@ -1907,217 +1912,65 @@ const FLASH_BOARDS = {
   'heltec_t114':        'nrf52',
 };
 
-let _flashAssets     = {};   // asset filename → browser_download_url
-let _flashTag        = '';   // e.g. "v1.2.0"
-let _flashTransport  = null; // esptool-js Transport (kept for disconnect-on-close)
-let _flashBusy       = false;
-
 // DOM refs for the modal
-const _fModal    = document.getElementById('flashModal');
-const _fBoardSel = document.getElementById('flash-board-sel');
-const _fGoBtn    = document.getElementById('flash-btn-go');
-const _fUf2Btn   = document.getElementById('flash-btn-uf2');
-const _fProgWrap = document.getElementById('flash-progress-wrap');
-const _fProgBar  = document.getElementById('flash-progress-bar');
-const _fStatus   = document.getElementById('flash-status');
-const _fRelText  = document.getElementById('flash-release-text');
-const _fNrfInfo  = document.getElementById('flash-nrf-info');
-const _fEspInfo  = document.getElementById('flash-esp-info');
-const _fPortWarn = document.getElementById('flash-port-warning');
+const _fModal      = document.getElementById('flashModal');
+const _fBoardSel   = document.getElementById('flash-board-sel');
+const _fInstallBtn = document.getElementById('flash-install-btn');
+const _fUf2Btn     = document.getElementById('flash-btn-uf2');
+const _fRelText    = document.getElementById('flash-release-text');
+const _fNrfInfo    = document.getElementById('flash-nrf-info');
+const _fEspInfo    = document.getElementById('flash-esp-info');
+const _fPortWarn   = document.getElementById('flash-port-warning');
 
 function _flashResetUI() {
   _fBoardSel.value = '';
-  [_fGoBtn, _fUf2Btn, _fNrfInfo, _fEspInfo, _fPortWarn, _fProgWrap].forEach(el => el.classList.add('d-none'));
-  _fProgBar.style.width = '0%';
-  _fProgBar.textContent = '0%';
-  _fProgBar.classList.add('progress-bar-animated');
-  _fProgBar.classList.remove('bg-success', 'bg-danger');
-  _fStatus.textContent = '';
+  [_fInstallBtn, _fUf2Btn, _fNrfInfo, _fEspInfo, _fPortWarn].forEach(el => el.classList.add('d-none'));
+  _fInstallBtn.removeAttribute('manifest');
 }
 
-function _flashSetProgress(pct, msg) {
-  _fProgBar.style.width = pct + '%';
-  _fProgBar.textContent = pct + '%';
-  if (msg !== undefined) _fStatus.textContent = msg;
-}
-
-// Fetch GitHub release metadata when the modal opens
+// Show the latest release tag/date in the modal banner
 _fModal.addEventListener('show.bs.modal', async () => {
   _flashResetUI();
-  _flashAssets = {};
-  _flashTag    = '';
   _fRelText.textContent = 'Loading latest release…';
-
   try {
     const resp = await fetch(FLASH_RELEASES_API);
     if (!resp.ok) throw new Error('GitHub API returned HTTP ' + resp.status);
     const data = await resp.json();
-    _flashTag  = data.tag_name || '';
+    const tag  = data.tag_name || '';
     const date = data.published_at
       ? new Date(data.published_at).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' })
       : '';
     _fRelText.innerHTML =
-      'Release <strong>' + _flashTag + '</strong>' +
+      'Release <strong>' + tag + '</strong>' +
       (date ? ' &mdash; ' + date : '') +
       ' &nbsp;<a href="' + data.html_url + '" target="_blank" rel="noopener" style="font-size:0.8rem">' +
       'view on GitHub</a>';
-    for (const asset of (data.assets || [])) {
-      // Use GitHub Pages URL so the browser can fetch without CORS issues.
-      _flashAssets[asset.name] = `${FLASH_FIRMWARE_BASE}/${asset.name}`;
-    }
   } catch (e) {
     _fRelText.textContent = '⚠ Could not load release info: ' + e.message;
   }
 });
 
-// Disconnect esptool transport (if any) when the modal closes
-_fModal.addEventListener('hidden.bs.modal', async () => {
-  if (_flashTransport) {
-    try { await _flashTransport.disconnect(); } catch {}
-    _flashTransport = null;
-  }
-  _flashBusy = false;
-});
-
-// Board selection drives which action buttons appear
+// Board selection drives which action panel and button appear
 _fBoardSel.addEventListener('change', () => {
   const env = _fBoardSel.value;
-  [_fGoBtn, _fUf2Btn, _fNrfInfo, _fEspInfo, _fPortWarn, _fProgWrap].forEach(el => el.classList.add('d-none'));
+  [_fInstallBtn, _fUf2Btn, _fNrfInfo, _fEspInfo, _fPortWarn].forEach(el => el.classList.add('d-none'));
+  _fInstallBtn.removeAttribute('manifest');
 
   if (!env) return;
 
-  const chip = FLASH_BOARDS[env];
-
-  if (chip === 'nrf52') {
+  if (FLASH_BOARDS[env] === 'nrf52') {
     _fNrfInfo.classList.remove('d-none');
-    const uf2Name = env + '_firmware.uf2';
-    const uf2Url  = _flashAssets[uf2Name];
-    if (uf2Url) {
-      _fUf2Btn.href     = uf2Url;
-      _fUf2Btn.download = uf2Name;
-      _fUf2Btn.classList.remove('d-none');
-    } else if (_flashTag) {
-      _fNrfInfo.querySelector
-        && (_fNrfInfo.insertAdjacentHTML('beforeend',
-          '<p class="mb-0 mt-2 text-warning small">⚠ ' + uf2Name + ' not found in release ' + _flashTag + '.</p>'));
-    }
+    _fUf2Btn.href     = `${FLASH_UF2_BASE}/${env}_firmware.uf2`;
+    _fUf2Btn.download = `${env}_firmware.uf2`;
+    _fUf2Btn.classList.remove('d-none');
   } else {
-    // Show connected-port warning if the config serial connection is open
+    // Warn if the config serial connection is still open (same physical port)
     if (connected) _fPortWarn.classList.remove('d-none');
     _fEspInfo.classList.remove('d-none');
-    const binName = env + '_web_factory.bin';
-    if (_flashAssets[binName]) {
-      _fGoBtn.dataset.env = env;
-      _fGoBtn.classList.remove('d-none');
-    } else if (_flashTag) {
-      _fEspInfo.insertAdjacentHTML('beforeend',
-        '<p class="mb-0 mt-2 text-warning small">⚠ ' + binName + ' not found in release ' + _flashTag + '.</p>');
-    }
+    _fInstallBtn.setAttribute('manifest', `${FLASH_MANIFEST_BASE}/${env}.json`);
+    _fInstallBtn.classList.remove('d-none');
   }
 });
-
-// Flash button: download firmware and write via esptool-js
-_fGoBtn.addEventListener('click', async () => {
-  if (_flashBusy) return;
-  const env     = _fGoBtn.dataset.env;
-  const binName = env + '_web_factory.bin';
-  const binUrl  = _flashAssets[binName];
-  if (!binUrl) { alert('Firmware binary not found in release.'); return; }
-
-  _flashBusy      = true;
-  _fGoBtn.disabled = true;
-  _fProgWrap.classList.remove('d-none');
-  _fProgBar.classList.add('progress-bar-animated');
-  _fProgBar.classList.remove('bg-success', 'bg-danger');
-
-  try {
-    // Step 1 — Download the factory binary from GitHub release
-    _flashSetProgress(0, 'Downloading firmware from GitHub…');
-    const dlResp = await fetch(binUrl);
-    if (!dlResp.ok) throw new Error('Download failed: HTTP ' + dlResp.status);
-    const buffer = await dlResp.arrayBuffer();
-    _flashSetProgress(8, 'Downloaded ' + (buffer.byteLength / 1024).toFixed(0) + ' KB Connecting to device…');
-
-    // Step 2 — Dynamically import esptool-js (ES module, loaded once on demand)
-    let ESPLoader, Transport;
-    try {
-      ({ ESPLoader, Transport } = await import(ESPTOOLJS_URL));
-    } catch (ie) {
-      throw new Error('Could not load esptool-js from CDN: ' + ie.message +
-        '\nCheck your internet connection, then try again.');
-    }
-
-    // Step 3 — Ask the browser to open the ESP device's serial port
-    _flashSetProgress(10, 'Select the ESP device port in the browser prompt…');
-    const serialPort  = await navigator.serial.requestPort();
-    _flashTransport   = new Transport(serialPort, false /* debug */);
-
-    // Terminal adapter: pipe esptool-js log lines to the status div
-    const term = {
-      clean()         {},
-      writeLine(data) { if (data && data.trim()) _fStatus.textContent = data.trim(); },
-      write(data)     { if (data && data.trim()) _fStatus.textContent = data.trim(); },
-    };
-
-    const loader = new ESPLoader({ transport: _flashTransport, baudrate: 921600, romBaudrate: 115200, terminal: term });
-
-    // Step 4 — Connect to the ROM bootloader
-    _flashSetProgress(12, 'Connecting to ROM bootloader… (hold BOOT + tap RST if stuck)');
-    const chip = await loader.main();
-    _flashSetProgress(16, 'Connected: ' + chip + ' Erasing + writing flash…');
-
-    // Step 5 — Convert ArrayBuffer to Latin-1 binary string (esptool-js format)
-    const binaryString = _arrayBufToBinStr(buffer);
-
-    // Step 6 — Write flash (compressed upload, factory binary at offset 0x0)
-    await loader.writeFlash({
-      fileArray:        [{ data: binaryString, address: 0x0 }],
-      flash_size:       'keep',
-      compress:         true,
-      calculateMD5Hash: () => '',  // CryptoJS unavailable via esm.sh; skip MD5 verify
-      reportProgress(fileIndex, written, total) {
-        const pct = Math.round(16 + (written / total) * 80);
-        _flashSetProgress(pct,
-          'Writing… ' + (written / 1024).toFixed(0) + ' / ' + (total / 1024).toFixed(0) + ' KB');
-      },
-    });
-
-    // Step 7 — Reset device and disconnect
-    _flashSetProgress(97, 'Resetting device…');
-    await loader.after('hard_reset');
-    await _flashTransport.disconnect();
-    _flashTransport = null;
-
-    _flashSetProgress(100, '✅ Flash complete! Press RST (or unplug and replug) to boot the new firmware.');
-    _fProgBar.classList.remove('progress-bar-animated');
-    _fProgBar.classList.add('bg-success');
-
-  } catch (e) {
-    _fProgBar.classList.remove('progress-bar-animated');
-    _fProgBar.classList.add('bg-danger');
-    _flashSetProgress(0, '❌ Error: ' + e.message);
-    _fProgBar.style.width = '0%';
-    _fProgBar.textContent = '0%';
-    if (_flashTransport) {
-      try { await _flashTransport.disconnect(); } catch {}
-      _flashTransport = null;
-    }
-  } finally {
-    _fGoBtn.disabled = false;
-    _flashBusy       = false;
-  }
-});
-
-/** Convert an ArrayBuffer to a Latin-1 binary string as required by esptool-js write_flash. */
-function _arrayBufToBinStr(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let str = '';
-  // Iterate byte-by-byte; avoids spread-operator stack overflow on multi-MB binaries
-  for (let i = 0; i < bytes.length; i++) {
-    str += String.fromCharCode(bytes[i]);
-  }
-  return str;
-}
 
 // Manual console input
 const consoleInput = document.getElementById('console-input');
