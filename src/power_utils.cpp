@@ -430,6 +430,13 @@ namespace POWER_Utils {
         #endif
 
         #if defined(TTGO_T_BEAM_1W)
+            // Enable LoRa LDO (LDO_EN, pin 40) early so the SX1262 power rail is live
+            // for the entire boot sequence before radio.begin() is called in LoRa_Utils::setup().
+            // Zero settle time in lora_utils.cpp caused radio.begin() to return -13 (SPI cmd
+            // timeout) → while(true) hang → WDT reset loop and blank display.
+            // Same fix pattern as HELTEC_T114's GPS_VCC above.
+            pinMode(RADIO_VCC_PIN, OUTPUT);
+            digitalWrite(RADIO_VCC_PIN, HIGH);
             pinMode(FAN_CTRL_PIN, OUTPUT);
             digitalWrite(FAN_CTRL_PIN, HIGH);
         #endif
