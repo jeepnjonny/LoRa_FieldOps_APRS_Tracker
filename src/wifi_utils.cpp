@@ -77,7 +77,9 @@ namespace WIFI_Utils {
             bootStatus("WiFi STA connected");
             return true;
         }
-        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "WiFi", "STA connect failed");
+        logger.log(logging::LoggerLevel::LOGGER_LEVEL_WARN, "WiFi",
+                   "STA connect failed (status %d)", (int)WiFi.status());
+        WiFi.disconnect(true);   // clean stop; tickWiFiReconnect handles retry
         return false;
     }
 
