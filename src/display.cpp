@@ -494,17 +494,21 @@ void displayStatus(const String& callsign, const String& tactical,
         #endif
     #else
         // ── OLED 128×64 role-aware layout ────────────────────────────────────────
+        // Standard (SSD1306 / other SH1106):
         //   y=0  : callsign / tactical — bold header (text×2)
         //   y=16 : separator
-        //   y=17 : device role (text×2)                          — always text×2
-        //   y=37 : role-specific detail (text×1, centred in slot) — GPS / IP / status
-        //          iGate: drawn twice (x=0 + x=1) for bold strokes; never clips
+        //   y=17 : device role (text×2)
+        //   y=37 : role-specific detail (text×1) — GPS / IP / status
         //   y=49 : battery or last-heard 4-s flash (text×2)
         //
-        // Role → line 3 / line 4:
-        //   Tracker : line3 = lat/lon or "Waiting..."   line4 = battery
-        //   iGate   : line3 = IP or "No WiFi"           line4 = battery → last-heard 4 s
-        //   Digi    : line3 = IP / lat/lon / status      line4 = battery → last-heard 4 s
+        // T-Beam 1W (TTGO_T_BEAM_1W) — 5 × text×1 rows below separator:
+        //   y=0  : callsign / tactical — bold header (text×2)
+        //   y=16 : separator
+        //   y=18 : device role (text×1)
+        //   y=27 : GPS coords / WiFi IP / status (text×1)
+        //   y=36 : gridsquare+alt+speed / extra info (text×1)
+        //   y=45 : battery (text×1)
+        //   y=54 : last-heard flash (4 s) → uptime (text×1)
         //
         // line2 from main.cpp: "Role  B:XX%" (battery suffix) and optionally
         // "Role  IP" or "Role  No WiFi" (WiFi suffix before battery suffix).
@@ -553,10 +557,12 @@ void displayStatus(const String& callsign, const String& tactical,
         role.replace("WIDE1+W2", "W1+W2");
         role.replace("WIDE1",    "W1");
 
-        // ── Line 2: device role ───────────────────────────────────────────────────
+        // ── Line 2: device role (standard OLED only; T-Beam 1W prints this in its section)
+#ifndef TTGO_T_BEAM_1W
         display.setTextSize(2);
         display.setCursor(0, 17);
         display.print(role);
+#endif
 
         // ── Last-heard flash tracking ─────────────────────────────────────────────
         String lastHd = line6.startsWith("Last: ") ? line6.substring(6) : line6;
@@ -566,11 +572,55 @@ void displayStatus(const String& callsign, const String& tactical,
         }
         bool showCallsign = (millis() < _oledLastHeardEnd && _oledLastHeard.length() > 0);
 
-        // ── Role-aware line 3 / line 4 ────────────────────────────────────────────
+        // ── Role-aware rows below separator ───────────────────────────────────────
         bool hasPosition    = (line3.indexOf('.') >= 0);
         bool hasIP          = (roleSuffix.length() > 0 && roleSuffix != "No WiFi");
         bool wifiConfigured = (roleSuffix.length() > 0);   // wifiSTA.enabled in main.cpp
 
+#ifdef TTGO_T_BEAM_1W
+        // ── T-Beam 1W expanded layout: 5 × text×1 rows (8px each, 9px pitch) ──────
+        // Frees up space previously used by text×2 role and battery rows, fitting
+        // 5 information rows in the 47px below the separator (y=17..63).
+        //
+        //   y=18  row1 — device role
+        //   y=27  row2 — GPS coords / WiFi IP / status
+        //   y=36  row3 — gridsquare+alt+speed / extra IP / lat-lon for iGate
+        //   y=45  row4 — battery
+        //   y=54  row5 — last-heard flash (4 s) → uptime
+        //
+        // 21 chars/line at text×1 (6 px/char) covers full coord strings and IPs.
+        String row2, row3, row5;
+
+        if (role.startsWith("Track")) {
+            row2 = hasPosition            ? line3
+                 : line3.startsWith("W") ? "Waiting..."
+                 :                         line3;          // "No GPS"
+            row3 = line4;                                  // gridsquare + alt + speed
+            row5 = showCallsign ? _oledLastHeard : line5;  // last-heard flash else uptime
+
+        } else if (role.startsWith("iGate")) {
+            row2 = wifiConfigured ? roleSuffix : "No WiFi";
+            row3 = hasPosition    ? line3 : "";            // lat/lon if iGate has GPS
+            row5 = showCallsign   ? _oledLastHeard : line5;
+
+        } else {
+            // Digi: prefer IP on row2, GPS coords on row3; fall back gracefully.
+            if      (hasIP)          { row2 = roleSuffix; row3 = hasPosition ? line3 : line4; }
+            else if (hasPosition)    { row2 = line3;       row3 = line4; }
+            else if (wifiConfigured) { row2 = "No GPS/Net"; row3 = ""; }
+            else                     { row2 = "No GPS";     row3 = ""; }
+            row5 = showCallsign ? _oledLastHeard : line5;
+        }
+
+        display.setTextSize(1);
+        display.setCursor(0, 18);  display.print(role);
+        display.setCursor(0, 27);  display.print(row2);
+        display.setCursor(0, 36);  display.print(row3);
+        display.setCursor(0, 45);  display.print(batt);
+        display.setCursor(0, 54);  display.print(row5);
+
+#else
+        // ── Standard OLED layout (SSD1306 / other SH1106): 2 info rows + battery ──
         String line3disp, line4disp;
 
         if (role.startsWith("Track")) {
@@ -615,6 +665,7 @@ void displayStatus(const String& callsign, const String& tactical,
             display.setCursor(0, 48);
             display.print(line4disp);
         }
+#endif  // TTGO_T_BEAM_1W
 
         display.display();
     #endif
