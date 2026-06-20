@@ -381,8 +381,11 @@ void displaySetup() {
         // Set maximum OLED contrast. 0xCF (81% max for SWITCHCAPVCC) is insufficient
         // for 2024-batch Heltec V3 panels (SSD1315-variant) — they produce no visible
         // light below this threshold. 0xFF crosses the illumination threshold.
-        display.ssd1306_command(SSD1306_SETCONTRAST);
-        display.ssd1306_command(0xFF);
+        // SH1106 uses setContrast() below; ssd1306_command is SSD1306-only.
+        #ifdef ssd1306
+            display.ssd1306_command(SSD1306_SETCONTRAST);
+            display.ssd1306_command(0xFF);
+        #endif
         // Apply user invert preference (black-on-white vs white-on-black).
         display.invertDisplay(Config.display.invertDisplay);
         if (Config.display.turn180) display.setRotation(2);
@@ -600,7 +603,7 @@ void displayStatus(const String& callsign, const String& tactical,
             display.setCursor(0, 37);  display.print(line3disp);
             display.setCursor(1, 37);  display.print(line3disp);
             display.setTextSize(2);
-            display.setCursor(0, 49);
+            display.setCursor(0, 48);
             display.print(line4disp);
         } else {
             // text×1 (6 w × 8 h px) — 21 chars/line handles full coords and IPs.
@@ -609,7 +612,7 @@ void displayStatus(const String& callsign, const String& tactical,
             display.setCursor(0, 37);
             display.print(line3disp);
             display.setTextSize(2);
-            display.setCursor(0, 49);
+            display.setCursor(0, 48);
             display.print(line4disp);
         }
 
@@ -637,24 +640,25 @@ void displayAPMode(const String& ssid, const String& password) {
         display.clearDisplay();
         #ifdef ssd1306
             display.setTextColor(WHITE);
-            display.drawLine(0, 16, 128, 16, WHITE);
-            display.drawLine(0, 17, 128, 17, WHITE);
         #else
             display.setTextColor(SH110X_WHITE);
-            display.drawLine(0, 16, 128, 16, SH110X_WHITE);
-            display.drawLine(0, 17, 128, 17, SH110X_WHITE);
         #endif
         // text×3: "AP Mode" = 7 chars × 18px = 126px — just fits in 128px
         display.setTextSize(3);
         display.setCursor(0, 0);
         display.print("AP Mode");
+        // Separator below the 24px-tall header (y=0–23); y=16-17 lines were
+        // removed — they cut through the middle of size-3 text.
         display.drawLine(0, 25, 128, 25, 1);
-        // text×2 body: 12px/char, 16px high; 2 lines fit in remaining 64-26=38px
-        display.setTextSize(2);
-        display.setCursor(0, 27);
+        // text×1 body: 6px/char, 8px high; 3 lines fit easily in remaining 64-26=38px.
+        // Size-2 body ("PW: 1234567890" = 14×12=168px) overflows 128px wide display.
+        display.setTextSize(1);
+        display.setCursor(0, 28);
         display.print(ssid);
-        display.setCursor(0, 44);
+        display.setCursor(0, 40);
         display.print("PW: " + password);
+        display.setCursor(0, 52);
+        display.print("192.168.4.1");
         display.display();
     #endif
 }

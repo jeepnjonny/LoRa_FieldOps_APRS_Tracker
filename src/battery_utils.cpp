@@ -47,7 +47,14 @@ float       lora32BatReadingCorr    = 6.5; // % of correction to higher value to
 namespace BATTERY_Utils {
 
     String getPercentVoltageBattery(float voltage) {
-        int percent = ((voltage - 3.0) / (4.2 - 3.0)) * 100;
+        #ifdef TTGO_T_BEAM_1W
+            // 2S Li-ion pack: 6.0 V (empty, 2×3.0 V) to 8.4 V (full, 2×4.2 V)
+            int percent = ((voltage - 6.0f) / (8.4f - 6.0f)) * 100;
+        #else
+            int percent = ((voltage - 3.0) / (4.2 - 3.0)) * 100;
+        #endif
+        if (percent < 0)   percent = 0;
+        if (percent > 100) percent = 100;
         return (percent < 100) ? (((percent < 10) ? "  ": " ") + String(percent)) : "100";
     }
 
@@ -60,6 +67,20 @@ namespace BATTERY_Utils {
             return (PMU.getBattVoltage() / 1000.0);
         #else
             #ifdef BATTERY_PIN
+                #if defined(TTGO_T_BEAM_1W)
+                    // analogReadMilliVolts uses ESP32-S3 eFuse calibration tables,
+                    // avoiding the ~0.6 V raw-ADC offset that makes 0 V VBAT read as
+                    // ~2.2 V and display "B:-66%" when running on USB with no battery.
+                    // 300 kΩ + 150 kΩ divider: VBAT = ADC_mV × (300+150)/150 = ADC_mV × 3.
+                    uint32_t mvSum = 0;
+                    analogReadMilliVolts(BATTERY_PIN);  // dummy read to settle ADC
+                    delay(1);
+                    for (int i = 0; i < averageReadings; i++) {
+                        mvSum += analogReadMilliVolts(BATTERY_PIN);
+                        delay(3);
+                    }
+                    return (float)(mvSum / averageReadings) / 1000.0f * 3.0f;
+                #endif
                 #ifdef ADC_CTRL_PIN
                     // T114-style boards: a discrete FET gates the battery
                     // divider so it doesn't bleed current continuously.
@@ -104,10 +125,6 @@ namespace BATTERY_Utils {
                 #endif
                 #if defined(TTGO_T_Beam_V0_7) || defined(TTGO_T_LORA32_V2_1_GPS) || defined(TTGO_T_LORA32_V2_1_GPS_915) || defined(TTGO_T_LORA32_V2_1_TNC) || defined(TTGO_T_LORA32_V2_1_TNC_915) || defined(ESP32_DIY_LoRa_GPS) || defined(ESP32_DIY_LoRa_GPS_915) || defined(ESP32_DIY_1W_LoRa_GPS) || defined(ESP32_DIY_1W_LoRa_GPS_915) || defined(ESP32_DIY_1W_LoRa_GPS_LLCC68) || defined(OE5HWN_MeshCom) || defined(TTGO_T_DECK_GPS) || defined(TTGO_T_DECK_PLUS) || defined(ESP32S3_DIY_LoRa_GPS) || defined(ESP32S3_DIY_LoRa_GPS_915) || defined(TROY_LoRa_APRS) || defined(RPC_Electronics_1W_LoRa_GPS) || defined(TTGO_LORA32_T3S3_V1_2_GPS) || defined(LORANGER_V1) || defined(LILYGO_T3_433_APRS)
                     return (2 * (voltage + 0.1)) * (1 + (lora32BatReadingCorr/100)); // (2 x 100k voltage divider) 2 x voltage divider/+0.1 because ESP32 nonlinearity ~100mV ADC offset/extra correction
-                #endif
-                #if defined(TTGO_T_BEAM_1W)
-                    double inputDivider = (1.0 / (300.0 + 150.0)) * 150.0;  // The voltage divider is a 300k + 150k resistor in series, 150k on the low side.
-                    return (voltage / inputDivider) + 0.285; // Yes, this offset is excessive, but the ADC on the ESP32s3 is quite inaccurate and noisy. Adjust to own measurements.
                 #endif
                 #if defined(HELTEC_V3_GPS) || defined(HELTEC_V3_TNC) || defined(HELTEC_V3_2_GPS) || defined(HELTEC_V3_2_TNC) || defined(HELTEC_WIRELESS_TRACKER) || defined(HELTEC_WSL_V3_GPS_DISPLAY) || defined(ESP32_C3_DIY_LoRa_GPS) || defined(ESP32_C3_DIY_LoRa_GPS_915) || defined(WEMOS_ESP32_Bat_LoRa_GPS) || defined(HELTEC_V3_433_APRS)
                     double inputDivider = (1.0 / (390.0 + 100.0)) * 100.0;  // The voltage divider is a 390k + 100k resistor in series, 100k on the low side.

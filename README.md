@@ -15,7 +15,7 @@ Derived from [richonguzman/LoRa_APRS_Tracker](https://github.com/richonguzman/Lo
 
 ## Install / Flash Firmware
 
-### ESP32 boards (Heltec V3, T-Beam, T3, LoRanger V1)
+### ESP32 boards (Heltec V3, T-Beam, T-Beam 1W, T3, LoRanger V1)
 
 Two release assets are published per ESP32 board:
 
@@ -44,6 +44,7 @@ Two release assets are published per ESP32 board:
 | **Heltec T114** | nRF52840 | SX1262 | Quectel L76K (onboard) | ST7789 1.14" TFT | — | ✅ BLE 5 |
 | **Heltec WiFi LoRa 32 V3** | ESP32-S3 | SX1262 | None (fixed position) | SSD1306/SH1106 OLED | ✅ | ✅ NimBLE |
 | **LilyGo T-Beam** | ESP32 | SX1278 | u-blox NEO-6M/M8N | SSD1306/SH1106 OLED | ✅ | ✅ NimBLE |
+| **LilyGo T-Beam 1W** | ESP32-S3 | SX1262 (1 W) | onboard GNSS (WAKE_UP) | SH1106 OLED | ✅ | ✅ NimBLE |
 | **LilyGo T3 V1.6** | ESP32 | SX1278 | None (fixed position) | SSD1306 OLED | ✅ | ✅ NimBLE |
 | **LoRanger V1** (KJ7NYE) | ESP32-S3 | EBYTE E22-400 (SX1262) | ATGM336H (onboard) | None (headless) | ✅ | ✅ NimBLE |
 
@@ -140,6 +141,7 @@ pio run -e heltec_t114 -t uploadfs
 | `heltec_t114` | Heltec T114 (nRF52840) |
 | `heltec_v3_433_aprs` | Heltec WiFi LoRa 32 V3 |
 | `tbeam_433_aprs` | LilyGo T-Beam |
+| `tbeam_433_1w_aprs` | LilyGo T-Beam 1W |
 | `lilygo_t3_433_aprs` | LilyGo T3 V1.6 |
 | `LoRanger_V1` | LoRanger V1 (KJ7NYE) |
 
@@ -360,6 +362,7 @@ variants/             Per-board pin definitions and PlatformIO environments
   heltec_t114/        nRF52840 + ST7789 TFT
   heltec_v3_433_aprs/ ESP32-S3 + OLED
   tbeam_433_aprs/     ESP32 + GPS + AXP PMU
+  tbeam_433_1w_aprs/  ESP32-S3 + SX1262 1W + GPS + SH1106
   lilygo_t3_433_aprs/ ESP32 + OLED
   LoRanger_V1/        ESP32-S3 + SX1262 (headless)
 variants_bsp/         BSP-level variant overrides (T114 nRF52 BSP)

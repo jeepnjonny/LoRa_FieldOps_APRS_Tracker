@@ -39,9 +39,9 @@ bool transmitFlag    = true;
     // On HELTEC_T114, variants_bsp/heltec_t114/variant.h sets PIN_SPI_MISO/MOSI/SCK
     // to the LoRa pins (P0.23/22/19), so the BSP's default `SPI` global is already
     // the LoRa bus — no custom SPIClass needed, and SPIM2 stays free for SPI1 (TFT).
-    // LORANGER_V1 has SX1262 silicon (E22-400M30S) on its own FSPI bus, separate
-    // from any other SPI peripheral; use a dedicated SPIClass like LightTracker does.
-    #if defined(LORANGER_V1)
+    // LORANGER_V1 and TTGO_T_BEAM_1W have the SX1262 on FSPI (IO11/12/13); use a
+    // dedicated SPIClass so the bus is configured to the correct pins.
+    #if defined(LORANGER_V1) || defined(TTGO_T_BEAM_1W)
         SPIClass loraSPI(FSPI);
         SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN, loraSPI);
     #else
@@ -110,7 +110,7 @@ namespace LoRa_Utils {
         #endif
 
         logger.log(logging::LoggerLevel::LOGGER_LEVEL_DEBUG, "LoRa", "Set SPI pins!");
-        #if defined(LIGHTTRACKER_PLUS_1_0) || defined(LORANGER_V1)
+        #if defined(LIGHTTRACKER_PLUS_1_0) || defined(LORANGER_V1) || defined(TTGO_T_BEAM_1W)
             loraSPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
         #else
             #ifdef ARDUINO_ARCH_NRF52

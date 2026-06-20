@@ -258,6 +258,11 @@ bool Configuration::readFile() {
         battery.sendVoltage             = data["battery"]["sendVoltage"] | false;
         battery.sendVoltageAlways       = data["battery"]["sendVoltageAlways"] | false;
         battery.sleepVoltage            = data["battery"]["sleepVoltage"] | 2.9;
+        #ifdef TTGO_T_BEAM_1W
+            // Upgrade a single-cell default stored in flash to the 2S Li-ion
+            // cutoff so the pack isn't over-discharged on first boot.
+            if (battery.sleepVoltage < 5.0f) battery.sleepVoltage = 6.0f;
+        #endif
 
         if (data["pttTrigger"]["active"].isNull() ||
             data["pttTrigger"]["reverse"].isNull() ||
@@ -409,7 +414,11 @@ void Configuration::setDefaultValues() {
 
     battery.sendVoltage             = false;
     battery.sendVoltageAlways       = false;
-    battery.sleepVoltage            = 2.9;
+    #ifdef TTGO_T_BEAM_1W
+        battery.sleepVoltage        = 6.0f;  // 2S Li-ion pack (2 × 3.0 V cutoff)
+    #else
+        battery.sleepVoltage        = 2.9f;
+    #endif
 
     ptt.active                      = false;
     ptt.reverse                     = false;

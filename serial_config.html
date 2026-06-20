@@ -250,6 +250,7 @@
             <option value="">&#x2014; choose board &#x2014;</option>
             <option value="heltec_v3_433_aprs">Heltec LoRa32 V3 (ESP32-S3)</option>
             <option value="tbeam_433_aprs">TTGO T-Beam V1.2 (ESP32)</option>
+            <option value="tbeam_433_1w_aprs">LilyGo T-Beam 1W (ESP32-S3)</option>
             <option value="lilygo_t3_433_aprs">LilyGo T3 V1.6 (ESP32)</option>
             <option value="LoRanger_V1">KJ7NYE LoRanger V1 (ESP32-S3)</option>
             <option value="heltec_t114">Heltec T114 / LoRanger nRF (nRF52840)</option>
@@ -322,6 +323,13 @@ let writer      = null;
 let reader      = null;
 let connected   = false;
 let serialMode  = 'kiss';   // 'kiss' | 'setup' | 'log'
+
+// Boot-detect plumbing: boards with DTR→EN wiring (CP210x, CH9102) reset on port
+// open. The firmware needs several seconds to boot before it can respond to 'setup'.
+// _bootActivityResolve fires on the first incoming byte; _kissReadyResolve fires
+// when the KISS-ready banner ([KISS TNC] Type …) appears after a device reset.
+let _bootActivityResolve = null;
+let _kissReadyResolve    = null;
 
 // ─────────────────────────────────────────────
 //  2. App state
@@ -513,6 +521,9 @@ function _handleExportChunk(chunk) {
 //  8. Incoming data handler
 // ─────────────────────────────────────────────
 function onData(text) {
+  // Signal boot-activity detection (first byte after port open when device just reset).
+  if (_bootActivityResolve) _bootActivityResolve();
+
   logRecv(text);
   _handleExportChunk(text);
 
@@ -536,6 +547,8 @@ function onData(text) {
     bannerBuf = '';
     serialMode = 'kiss';
     updateModeButtons();
+    // Signal boot complete so _waitForBootComplete() can unblock connectSerial().
+    if (_kissReadyResolve) _kissReadyResolve();
   }
 
   streamBuf += text;
@@ -560,13 +573,19 @@ async function connectSerial() {
     logInfo('Port opened at 115200. Entering Setup mode…');
     _readLoop();
 
+    // Wait for firmware boot if the board resets on port open (DTR→EN wiring).
+    // Boards with CP210x/CH9102 bridges reset immediately; native-USB boards
+    // (LoRanger, nRF52) do not reset and are already running — _waitForBootComplete
+    // returns in ≤500 ms for those.
+    await _waitForBootComplete();
+
     // Enter setup mode via switchToMode — handles device already being in any mode
     await switchToMode('setup');
 
   } catch (e) {
     setStatus('error', 'Error: ' + e.message);
     logErr(e.message);
-    _cleanup();
+    await _cleanup();
   }
 }
 
@@ -583,14 +602,14 @@ async function _readLoop() {
   }
   // Port closed (device rebooted, unplugged, or stream ended)
   if (connected) {
-    _cleanup();
+    await _cleanup();
     setStatus('error', 'Port closed — device disconnected or rebooted');
     logErr('Port closed. Use Select Port to reconnect.');
   }
 }
 
 async function disconnectSerial() {
-  _cleanup();
+  await _cleanup();
   setStatus('', 'Disconnected');
   logInfo('Disconnected.');
 }
@@ -604,14 +623,16 @@ function resetLeftPanel() {
   document.getElementById('config-placeholder').style.display = '';
 }
 
-function _cleanup() {
+async function _cleanup() {
   connected  = false;
   serialMode = 'kiss';
   bannerBuf  = '';
   document.getElementById('fw-version').style.display = 'none';
-  try { reader && reader.cancel(); }  catch {}
-  try { writer && writer.close(); }   catch {}
-  try { port   && port.close(); }     catch {}
+  // Web Serial Streams API requires cancel/close to be awaited before releaseLock(),
+  // and both locks must be released before port.close() can succeed.
+  try { if (reader) { await reader.cancel(); reader.releaseLock(); } } catch {}
+  try { if (writer) { await writer.close(); writer.releaseLock(); } } catch {}
+  try { if (port)   { await port.close(); } }                          catch {}
   port = writer = reader = null;
   setConnectedControls(false);
   updateModeButtons();
@@ -619,6 +640,44 @@ function _cleanup() {
 }
 
 const _delay = ms => new Promise(r => setTimeout(r, ms));
+
+// Resolves true if any serial data arrives within ms, false on timeout.
+function _waitForAnyDataOrTimeout(ms) {
+  return new Promise(resolve => {
+    let fired = false;
+    _bootActivityResolve = () => {
+      if (!fired) { fired = true; _bootActivityResolve = null; resolve(true); }
+    };
+    setTimeout(() => {
+      if (!fired) { fired = true; _bootActivityResolve = null; resolve(false); }
+    }, ms);
+  });
+}
+
+// Resolves when [KISS TNC] banner is seen in the stream, or after ms timeout.
+function _waitForKissBannerOrTimeout(ms) {
+  return new Promise(resolve => {
+    let fired = false;
+    _kissReadyResolve = () => {
+      if (!fired) { fired = true; _kissReadyResolve = null; resolve(); }
+    };
+    setTimeout(() => {
+      if (!fired) { fired = true; _kissReadyResolve = null; resolve(); }
+    }, ms);
+  });
+}
+
+// On boards where port-open triggers a device reset (DTR→EN), wait for the
+// firmware to finish booting before issuing serial commands.
+// Detection: a running KISS TNC is silent; a freshly-reset device produces
+// IDF/ROM output within ~500 ms. If we see activity, wait for the [KISS TNC]
+// ready banner (printed by SERIAL_Setup::setup() at end of firmware boot).
+async function _waitForBootComplete() {
+  const gotActivity = await _waitForAnyDataOrTimeout(500);
+  if (!gotActivity) return;
+  logInfo('Device boot detected — waiting for firmware ready (up to 8 s)…');
+  await _waitForKissBannerOrTimeout(8000);
+}
 
 // ─────────────────────────────────────────────
 //  9b. Mode switching
@@ -1441,7 +1500,7 @@ function renderConfig() {
     body.appendChild(mkGroupTitle('Battery Voltage'));
     body.appendChild(mkBool('Send voltage in comment', bat.sendVoltage,       v => sendCmd(`bat sendv ${boolStr(v)}`)));
     body.appendChild(mkBool('Send voltage on every beacon', bat.sendVoltageAlways, v => sendCmd(`bat alwaysv ${boolStr(v)}`)));
-    body.appendChild(mkNumber('Low-voltage shutdown (V)', bat.sleepVoltage,   v => sendCmd(`bat sleepv ${v}`), { step: '0.01', min: 2.5, max: 4.0 }));
+    body.appendChild(mkNumber('Low-voltage shutdown (V)', bat.sleepVoltage,   v => sendCmd(`bat sleepv ${v}`), { step: '0.01', min: 2.5, max: 9.0 }));
   });
 
   // ── PTT ──────────────────────────────────
@@ -1911,6 +1970,7 @@ const FLASH_UF2_BASE      = 'https://kj7nye.github.io/LoRa_FieldOps_APRS_Tracker
 const FLASH_BOARDS = {
   'heltec_v3_433_aprs': 'esp32s3',
   'tbeam_433_aprs':     'esp32',
+  'tbeam_433_1w_aprs':  'esp32s3',
   'lilygo_t3_433_aprs': 'esp32',
   'LoRanger_V1':        'esp32s3',
   'heltec_t114':        'nrf52',
