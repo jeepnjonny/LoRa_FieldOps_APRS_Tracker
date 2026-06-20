@@ -1,6 +1,6 @@
 {
-  "version": "v1.0.3",
-  "published": "2026-06-17",
+  "version": "v1.0.5",
+  "published": "2026-06-20",
   "repo": "KJ7NYE/LoRa_FieldOps_APRS_Tracker",
   "targets": [
     {
@@ -23,6 +23,13 @@
       "chip": "ESP32",
       "description": "LilyGo T3 \u2014 ESP32, SX1278, SSD1306 OLED, WiFi/BLE. No onboard GPS.",
       "manifest": "lilygo_t3_433_aprs.json"
+    },
+    {
+      "id": "tbeam_433_1w_aprs",
+      "label": "LilyGo T-Beam 1W",
+      "chip": "ESP32-S3",
+      "description": "LilyGo T-Beam 1W \u2014 ESP32-S3, SX1262 (1 W), onboard GNSS, SH1106 OLED, WiFi/BLE.",
+      "manifest": "tbeam_433_1w_aprs.json"
     },
     {
       "id": "LoRanger_V1",
