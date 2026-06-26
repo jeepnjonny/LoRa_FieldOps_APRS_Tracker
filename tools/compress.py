@@ -19,6 +19,7 @@ import gzip
 import io
 import os
 import datetime
+import subprocess
 Import("env")
 
 files = [
@@ -30,29 +31,23 @@ files = [
   'data_embed/favicon.png',
 ]
 
-# Read version string — generated file (written by tools/gen_version.py) takes priority,
-# then version.h as a fallback for edge cases where gen_version.py didn't run.
-versionDate = "unknown"
-for vh_path in ("include/generated/firmware_version.h", "include/version.h"):
-  if not os.path.exists(vh_path):
-    continue
-  with open(vh_path, encoding='utf-8') as vh:
-    for line in vh:
-      if 'FIRMWARE_VERSION_DATE' in line and '"' in line:
-        start = line.find('"') + 1
-        end   = line.find('"', start)
-        if start > 0 and end > start:
-          versionDate = line[start:end]
-          break
-  if versionDate != "unknown":
-    break
+# Get version string directly from git — no dependency on the generated header file.
+# Content-based .gz comparison below handles version changes without mtime tricks.
+def _git_version():
+  try:
+    return subprocess.check_output(
+      ["git", "describe", "--tags", "--always", "--dirty"],
+      stderr=subprocess.DEVNULL
+    ).decode().strip()
+  except Exception:
+    return "unknown"
 
-# Deterministic "build date": newest mtime across all inputs that can affect
-# the embedded web UI. Since we only regenerate a .gz when its inputs actually
-# changed (see below), this stamp also only changes when something real
-# changed — turning identical inputs into byte-identical firmware and
-# letting SCons cache configuration.cpp + friends across no-op builds.
-_input_files = list(files) + ['include/generated/firmware_version.h', 'tools/compress.py']
+versionDate = _git_version() or "unknown"
+
+# Deterministic "build date": newest mtime across tracked web-UI source files
+# and this script. Version string changes are captured by the content-based
+# .gz comparison below (not mtime), so no version-file dependency needed here.
+_input_files = list(files) + ['tools/compress.py']
 _latest_input_mtime = max(os.path.getmtime(p) for p in _input_files)
 build_date_str = datetime.datetime.utcfromtimestamp(_latest_input_mtime).strftime('%Y-%m-%d %H:%M:%S') + " UTC"
 
