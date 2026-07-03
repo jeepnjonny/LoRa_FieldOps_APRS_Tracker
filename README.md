@@ -352,6 +352,19 @@ SmartBeacon adjusts the beacon interval dynamically:
 
 Heading changes above `turnMinDeg` threshold trigger an immediate beacon regardless of time elapsed.
 
+### Built-in profiles
+
+Four fixed presets are built in, selected via `beacon smartset <0..3>`:
+
+| Profile | Slow Rate | Slow Speed | Fast Rate | Fast Speed | Min Turn Angle | Turn Slope |
+|---|---|---|---|---|---|---|
+| **0 — Runner** | 90 s | 5 km/h | 45 s | 18 km/h | 12° | 60 |
+| **1 — Bike** | 120 s | 5 km/h | 45 s | 50 km/h | 12° | 60 |
+| **2 — Car** | 90 s | 10 km/h | 36 s | 97 km/h | 10° | 80 |
+| **3 — Jetboat** | 60 s | 30 km/h | 10 s | 97 km/h | 5° | 150 |
+
+A 5th profile, **Custom** (`smartset 4`), is fully user-editable rather than a fixed preset — see [SERIAL_SETUP.md's SmartBeacon Custom Profile section](SERIAL_SETUP.md#smartbeacon-custom-profile) for its tuning commands. Its out-of-the-box defaults are bike-like (120 s / 5 km/h / 60 s / 40 km/h / 12° / 60).
+
 ---
 
 ## APRS Station Queries
