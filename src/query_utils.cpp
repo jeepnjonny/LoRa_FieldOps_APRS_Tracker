@@ -10,8 +10,11 @@
  *   iGate query (addressed to "IGATE", iGate mode only):
  *     ?IGATE?
  *
- * Responses are queued through addToOutputPacketBuffer() so the
+ * Most responses are queued through addToOutputPacketBuffer() so the
  * 200 ms inter-packet gap is respected and TX does not block the main loop.
+ * ?APRS?/?APRSP instead schedule a jittered position-beacon reply (see
+ * tick()), so multiple stations answering the same broadcast query don't
+ * all key up at once.
  * Duplicate queries from the same sender are suppressed for 60 s.
  */
 
@@ -33,6 +36,13 @@ namespace QUERY_Utils {
 
     // Dedup to rate-limit responses: same query from same sender within 60 s is ignored.
     static PacketDedup queryDedup;
+
+    // Max random delay before answering ?APRS?/?APRSP, so multiple stations
+    // answering the same broadcast query don't all key up at once.
+    static constexpr uint32_t QUERY_JITTER_MAX_MS = 3000;
+
+    static bool     pendingBeaconResponse   = false;
+    static uint32_t pendingBeaconResponseAt = 0;
 
     // Outgoing message sequence number, 1–999 wrapping.
     static int msgCounter = 1;
@@ -153,15 +163,16 @@ namespace QUERY_Utils {
 
         // ── Dispatch ──────────────────────────────────────────────────────────
 
-        if (query == "?APRS?" && (toAPRS || toUs)) {
-            // Undirected general query — respond with our current position beacon.
-            // sendBeacon() transmits immediately; the ACK above is queued and will
-            // follow on the next output-buffer drain (200 ms gap).
-            STATION_Utils::sendBeacon();
-
-        } else if (query == "?APRSP") {
-            // Directed position request — same response as ?APRS?.
-            STATION_Utils::sendBeacon();
+        if ((query == "?APRS?" && (toAPRS || toUs)) || query == "?APRSP") {
+            // Undirected general query, or directed position request — respond
+            // with our current position beacon after a random jitter delay (see
+            // tick()), so multiple stations answering the same query don't all
+            // key up at once. Coalesce: if a response is already pending, let it
+            // serve this query too rather than pushing the deadline out further.
+            if (!pendingBeaconResponse) {
+                pendingBeaconResponse   = true;
+                pendingBeaconResponseAt = millis() + random(0, QUERY_JITTER_MAX_MS + 1);
+            }
 
         } else if (query == "?APRSD") {
             // Stations heard directly (no digi hop).
@@ -219,6 +230,13 @@ namespace QUERY_Utils {
             // iGate capability query — only iGate mode responds.
             STATION_Utils::addToOutputPacketBuffer(
                 buildReply(sender, "IGATE Online"));
+        }
+    }
+
+    void tick() {
+        if (pendingBeaconResponse && (int32_t)(millis() - pendingBeaconResponseAt) >= 0) {
+            pendingBeaconResponse = false;
+            STATION_Utils::sendBeacon();
         }
     }
 

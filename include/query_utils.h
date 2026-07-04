@@ -13,9 +13,15 @@ namespace QUERY_Utils {
     // Handles: ?APRS? ?APRSD ?APRSH ?APRSL ?APRSP ?APRSS ?APRST ?APRSV
     //          ?PING? ?VER ?IGATE?
     //
-    // Responses are queued via STATION_Utils::addToOutputPacketBuffer().
-    // Duplicate queries from the same sender are suppressed for 60 s.
+    // Most responses are queued via STATION_Utils::addToOutputPacketBuffer().
+    // ?APRS?/?APRSP instead schedule a jittered position-beacon reply — see
+    // tick(). Duplicate queries from the same sender are suppressed for 60 s.
     void processLoRaPacket(const String& rawPacket);
+
+    // Poll for a jittered query-response beacon that's come due. Call every loop
+    // iteration (see STATION_Utils::processOutputPacketBuffer() for the same
+    // self-contained poll-and-drain pattern).
+    void tick();
 
 }
 

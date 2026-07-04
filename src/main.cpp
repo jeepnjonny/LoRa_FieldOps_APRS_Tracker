@@ -280,6 +280,9 @@ void loop() {
     // ── Output packet buffer (digi re-TX, iGate downlink) ───────────────
     STATION_Utils::processOutputPacketBuffer();
 
+    // ── Jittered query-response beacon (?APRS?/?APRSP) ──────────────────
+    QUERY_Utils::tick();
+
     // ── Beaconing ────────────────────────────────────────────────────────
     uint32_t now = millis();
     lastTx = now - lastTxTime;
